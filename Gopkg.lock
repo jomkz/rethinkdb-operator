@@ -223,7 +223,7 @@
     "unix",
     "windows"
   ]
-  revision = "c488ab1dd8481ef762f96a79a9577c27825be697"
+  revision = "1e3c7779a71dac3e6f1a2abb347a6734b72d35e7"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -403,7 +403,7 @@
     "util/workqueue"
   ]
   revision = "9389c055a838d4f208b699b3c7c51b70f2368861"
-  version = "kubernetes-1.9.3"
+  version = "kubernetes-1.9.1"
 
 [[projects]]
   branch = "master"
