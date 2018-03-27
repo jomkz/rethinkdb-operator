@@ -1,3 +1,3 @@
 # RethinkDB Operator
 
-An operator to create and manage RethinkDB instances for Kubernetes clusters.
+A Kubernetes operator to manage RethinkDB instances.
