@@ -1,0 +1,7 @@
+apiVersion: "operator.rethinkdb.com/v1alpha1"
+kind: "RethinkDB"
+metadata:
+  name: "rethinkdb-minimal-example"
+  namespace: "default"
+spec:
+  withService: true

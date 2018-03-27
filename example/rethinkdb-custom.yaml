@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rethinkdb-custom-example
+  labels:
+    app: hitchslap
+    role: db
+data:
+  rethinkdb.conf: |
+    bind=all
+    directory=/var/lib/rethinkdb/default
+---
+apiVersion: operator.rethinkdb.com/v1alpha1
+kind: RethinkDB
+metadata:
+  name: rethinkdb-custom-example
+  namespace: default
+spec:
+  nodes: 3
+  withService: true

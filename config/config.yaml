@@ -1,0 +1,3 @@
+apiVersion: operator.rethinkdb.com/v1alpha1
+kind: RethinkDB
+projectName: rethinkdb-operator
