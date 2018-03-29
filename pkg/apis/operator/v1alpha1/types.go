@@ -29,6 +29,7 @@
 package v1alpha1
 
 import (
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -73,6 +74,20 @@ type RethinkDBSpec struct {
 
 	// Name of Secret to use or create.
 	SecretName string `json:"secretName"`
+
+	// Pod defines the policy for pods owned by rethinkdb operator.
+	// This field cannot be updated once the CR is created.
+	Pod *PodPolicy `json:"pod,omitempty"`
+}
+
+// PodPolicy defines the policy for pods owned by vault operator.
+type PodPolicy struct {
+	// Resources is the resource requirements for the containers.
+	Resources v1.ResourceRequirements `json:"resources,omitempty"`
+
+	// PersistentVolumeClaimSpec is the spec to describe PVC for the rethinkdb container
+	// This field is optional. If no PVC spec, rethinkdb container will use emptyDir as volume
+	PersistentVolumeClaimSpec *v1.PersistentVolumeClaimSpec `json:"persistentVolumeClaimSpec,omitempty"`
 }
 
 // SetDefaults sets the default vaules for the cuberite spec and returns true if the spec was changed
@@ -100,6 +115,13 @@ func (r *RethinkDB) SetDefaults() bool {
 		changed = true
 	}
 	return changed
+}
+
+func (r *RethinkDB) IsPVEnabled() bool {
+	if podPolicy := r.Spec.Pod; podPolicy != nil {
+		return podPolicy.PersistentVolumeClaimSpec != nil
+	}
+	return false
 }
 
 type RethinkDBStatus struct {

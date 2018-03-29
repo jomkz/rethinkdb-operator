@@ -24,12 +24,16 @@ import (
 	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
 	"github.com/jmckind/rethinkdb-operator/pkg/util/k8sutil"
 	"github.com/sirupsen/logrus"
-	apps_v1 "k8s.io/api/apps/v1"
+	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+)
+
+const (
+	defaultConfig = "bind=all"
 )
 
 func NewRethinkDBHandler() handler.Handler {
@@ -109,7 +113,7 @@ func (h *RethinkDBHandler) GetOrCreateConfigMap(r *v1alpha1.RethinkDB, labels ma
 			Labels: labels,
 		},
 		Data: map[string]string{
-			"rethinkdb.conf": "",
+			"rethinkdb.conf": defaultConfig,
 		},
 	}
 
@@ -128,9 +132,9 @@ func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[s
 
 	logrus.Infof("Creating StatefulSet: %v", name)
 
-	ss := &apps_v1.StatefulSet{
+	ss := &apps_v1beta2.StatefulSet{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1",
+			APIVersion: "apps/v1beta2",
 			Kind:       "StatefulSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
@@ -138,11 +142,12 @@ func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[s
 			Namespace: namespace,
 			Labels: labels,
 		},
-		Spec: apps_v1.StatefulSetSpec{
+		Spec: apps_v1beta2.StatefulSetSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
+			ServiceName: cluster,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
@@ -190,7 +195,7 @@ func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[s
 						Command: []string{
 							"/bin/sh",
 							"-c",
-							fmt.Sprintf("cat /opt/rethinkdb/rethinkdb.conf > /etc/rethinkdb/rethinkdb.conf; if nslookup %s; then echo join=%s >> /etc/rethinkdb/rethinkdb.conf; fi;", cluster, cluster),
+							fmt.Sprintf("cat /opt/rethinkdb/rethinkdb.conf > /etc/rethinkdb/rethinkdb.conf; if nslookup %s; then echo join=%s-0.%s:29015 >> /etc/rethinkdb/rethinkdb.conf; fi;", cluster, name, cluster),
 						},
 						Image: "busybox",
 						Name: "cluster-init",
@@ -222,12 +227,51 @@ func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[s
 					}},
 				},
 			},
+			VolumeClaimTemplates: []v1.PersistentVolumeClaim{{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "rethinkdb-data",
+					Namespace: namespace,
+					Labels: labels,
+				},
+				Spec: v1.PersistentVolumeClaimSpec{
+					AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+					StorageClassName: func(s string) *string { return &s }("standard"),
+					Resources: v1.ResourceRequirements{
+						Requests: v1.ResourceList{
+							v1.ResourceName(v1.ResourceStorage): resource.MustParse("5Gi"),
+						},
+					},
+				},
+			}},
 		},
+	}
+
+	if r.IsPVEnabled() {
+		ss.Spec.VolumeClaimTemplates = []v1.PersistentVolumeClaim{*h.AddPVC(namespace, labels)}
 	}
 
 	return types.Action{
 		Object: ss,
 		Func:   action.KubeApplyFunc,
+	}
+}
+
+func (h *RethinkDBHandler) AddPVC(namespace string, labels map[string]string) *v1.PersistentVolumeClaim {
+	return &v1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "rethinkdb-data",
+			Namespace: namespace,
+			Labels: labels,
+		},
+		Spec: v1.PersistentVolumeClaimSpec{
+			AccessModes: []v1.PersistentVolumeAccessMode{v1.ReadWriteOnce},
+			StorageClassName: func(s string) *string { return &s }("standard"),
+			Resources: v1.ResourceRequirements{
+				Requests: v1.ResourceList{
+					v1.ResourceName(v1.ResourceStorage): resource.MustParse("5Gi"),
+				},
+			},
+		},
 	}
 }
 
