@@ -25,7 +25,7 @@ spec:
     spec:
       containers:
         - name: rethinkdb-operator
-          image: jmckind/rethinkdb-operator:0.0.1
+          image: jmckind/rethinkdb-operator:0.0.2
           command:
           - rethinkdb-operator
           imagePullPolicy: Always
