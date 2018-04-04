@@ -28,6 +28,7 @@ spec:
     spec:
       containers:
         - name: rethinkdb-operator
+          tty: true
           image: jmckind/rethinkdb-operator:0.0.2
           command:
           - rethinkdb-operator
