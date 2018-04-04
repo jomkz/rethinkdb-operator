@@ -80,7 +80,7 @@ type RethinkDBSpec struct {
 	Pod *PodPolicy `json:"pod,omitempty"`
 }
 
-// PodPolicy defines the policy for pods owned by vault operator.
+// PodPolicy defines the policy for pods owned by rethinkdb operator.
 type PodPolicy struct {
 	// Resources is the resource requirements for the containers.
 	Resources v1.ResourceRequirements `json:"resources,omitempty"`
