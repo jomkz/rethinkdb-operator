@@ -25,8 +25,8 @@
     "pkg/util/k8sutil",
     "version"
   ]
-  revision = "8dc23a4665e614dea9a79d25ca44cc32c046db91"
-  version = "v0.0.1"
+  revision = "4dde66ab241ea83f5c12625ad2509174daf9c572"
+  version = "v0.0.3"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -414,6 +414,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "3ff0822a3374fc87345f7187bb06754e95529ee804355518ecb055f3bfac9bd9"
+  inputs-digest = "1118517a990f0b4e8a8fd9ecd1e96a8e41cdf69a460aefafddf2cc5e4fb61a4a"
   solver-name = "gps-cdcl"
   solver-version = 1

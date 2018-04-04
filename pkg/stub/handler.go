@@ -27,7 +27,6 @@ import (
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -49,26 +48,20 @@ type RethinkDBHandler struct {
 	kubecli		kubernetes.Interface
 }
 
-func (h *RethinkDBHandler) Handle(ctx types.Context, event types.Event) []types.Action {
-	var actions []types.Action
-
+func (h *RethinkDBHandler) Handle(ctx types.Context, event types.Event) error {
 	switch o := event.Object.(type) {
 	case *v1alpha1.RethinkDB:
 		logrus.Infof("Received RethinkDB: %v", o.Name)
 		o.SetDefaults()
-
-		if event.Deleted {
-			actions = h.DestroyRethinkDB(o)
-		} else {
-			actions = h.CreateRethinkDB(o)
+		err := h.CreateRethinkDB(o)
+		if err != nil {
+			return fmt.Errorf("failed to create rethindb: %v", err)
 		}
 	}
-
-	return actions
+	return nil
 }
 
-func (h *RethinkDBHandler) CreateRethinkDB(r *v1alpha1.RethinkDB) []types.Action {
-	var actions []types.Action
+func (h *RethinkDBHandler) CreateRethinkDB(r *v1alpha1.RethinkDB) error {
 	labels := map[string]string{
 		"app":  "rethinkdb",
 		"cluster": r.Name,
@@ -76,14 +69,14 @@ func (h *RethinkDBHandler) CreateRethinkDB(r *v1alpha1.RethinkDB) []types.Action
 
 	logrus.Infof("Creating RethinkDB: %v", r.Name)
 
-	actions = append(actions, h.CreateClusterService(r, labels))
-	actions = append(actions, h.CreateDriverService(r, labels))
-	actions = append(actions, h.CreateStatefulSet(r, labels))
+	_, err := h.CreateClusterService(r, labels)
+	_, err = h.CreateDriverService(r, labels)
+	_, err = h.CreateStatefulSet(r, labels)
 
-	return actions
+	return err
 }
 
-func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[string]string) types.Action {
+func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[string]string) (*apps_v1beta2.StatefulSet, error) {
 	name := r.Name
 	replicas := r.Spec.Nodes
 	cluster := name + "-cluster"
@@ -122,10 +115,12 @@ func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[s
 		},
 	}
 
-	return types.Action{
-		Object: ss,
-		Func:   action.KubeApplyFunc,
+	err := action.Create(ss)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create StatefulSet: %v", err)
 	}
+
+	return ss, nil
 }
 
 func (h *RethinkDBHandler) AddContainers(r *v1alpha1.RethinkDB) []v1.Container {
@@ -221,7 +216,7 @@ func (h *RethinkDBHandler) AddPVCs(r *v1alpha1.RethinkDB) []v1.PersistentVolumeC
 	return pvcs
 }
 
-func (h *RethinkDBHandler) CreateClusterService(r *v1alpha1.RethinkDB, labels map[string]string) types.Action {
+func (h *RethinkDBHandler) CreateClusterService(r *v1alpha1.RethinkDB, labels map[string]string) (*v1.Service, error) {
 	name := r.Name + "-cluster"
 
 	logrus.Infof("Creating Cluster Service: %v", name)
@@ -246,13 +241,15 @@ func (h *RethinkDBHandler) CreateClusterService(r *v1alpha1.RethinkDB, labels ma
 		},
 	}
 
-	return types.Action{
-		Object: svc,
-		Func:   action.KubeApplyFunc,
+	err := action.Create(svc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cluster service: %v", err)
 	}
+
+	return svc, nil
 }
 
-func (h *RethinkDBHandler) CreateDriverService(r *v1alpha1.RethinkDB, labels map[string]string) types.Action {
+func (h *RethinkDBHandler) CreateDriverService(r *v1alpha1.RethinkDB, labels map[string]string) (*v1.Service, error) {
 	logrus.Infof("Creating Driver Service: %v", r.Name)
 
 	svc := &v1.Service{
@@ -280,69 +277,10 @@ func (h *RethinkDBHandler) CreateDriverService(r *v1alpha1.RethinkDB, labels map
 		},
 	}
 
-	return types.Action{
-		Object: svc,
-		Func:   action.KubeApplyFunc,
-	}
-}
-
-// TODO: remove this function when CRD GC is enabled.
-func (h *RethinkDBHandler) DestroyRethinkDB(r *v1alpha1.RethinkDB) []types.Action {
-	var actions []types.Action
-
-	logrus.Infof("Destroying RethinkDB: %v", r.Name)
-
-	action := h.DestroyRethinkDBDeployment(r)
-	if action != nil {
-			actions = append(actions, *action)
+	err := action.Create(svc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create driver service: %v", err)
 	}
 
-	action = h.DestroyServices(r)
-	if action != nil {
-			actions = append(actions, *action)
-	}
-
-	return actions
-}
-
-func (h *RethinkDBHandler) DestroyRethinkDBDeployment(r *v1alpha1.RethinkDB) *types.Action {
-	name := r.Name
-	namespace := r.ObjectMeta.Namespace
-
-	deployment, err := h.kubecli.AppsV1beta1().Deployments(namespace).Get(name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		logrus.Warnf("Deployment not found: %v", name)
-		return nil
-	} else if err != nil {
-		logrus.Errorf("Error deleting Deployment: %v", err)
-		return nil
-	}
-
-	logrus.Infof("Destroying Deployment: %v", name)
-
-	return &types.Action{
-		Object: deployment,
-		Func:   action.KubeDeleteFunc,
-	}
-}
-
-func (h *RethinkDBHandler) DestroyServices(r *v1alpha1.RethinkDB) *types.Action {
-	name := r.Name
-	namespace := r.ObjectMeta.Namespace
-
-	svc, err := h.kubecli.CoreV1().Services(namespace).Get(name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		logrus.Warnf("Service not found: %v", name)
-		return nil
-	} else if err != nil {
-		logrus.Errorf("Error deleting Service: %v", err)
-		return nil
-	}
-
-	logrus.Infof("Destroying Service: %v", name)
-
-	return &types.Action{
-		Object: svc,
-		Func:   action.KubeDeleteFunc,
-	}
+	return svc, nil
 }

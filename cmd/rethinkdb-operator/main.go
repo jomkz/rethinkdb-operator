@@ -48,7 +48,7 @@ func startReadyz() {
 }
 
 func run() {
-	sdk.Watch("operator.rethinkdb.com/v1alpha1", "RethinkDB", "default")
+	sdk.Watch("operator.rethinkdb.com/v1alpha1", "RethinkDB", "default", 5)
 	sdk.Handle(operator.NewRethinkDBHandler())
  	sdk.Run(context.TODO())
 }
