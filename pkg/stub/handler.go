@@ -64,7 +64,7 @@ func (h *RethinkDBHandler) Handle(ctx types.Context, event types.Event) error {
 }
 
 func (h *RethinkDBHandler) HandleRethinkDB(r *v1alpha1.RethinkDB) error {
-	logrus.Infof("handling rethinkdb: %v", r)
+	logrus.Infof("handling rethinkdb: %v", r.Name)
 
 	labels := map[string]string{
 		"app":  "rethinkdb",
@@ -112,7 +112,16 @@ func (h *RethinkDBHandler) CreateOrUpdateStatefulSet(r *v1alpha1.RethinkDB, labe
 			Namespace: r.ObjectMeta.Namespace,
 			Labels: labels,
 		},
-		Spec: apps_v1beta2.StatefulSetSpec{
+	}
+
+	err := query.Get(ss)
+	if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get statefulset: %v", err)
+	}
+
+	if apierrors.IsNotFound(err) {
+		logrus.Infof("creating statefulset: %v", name)
+		ss.Spec = apps_v1beta2.StatefulSetSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
@@ -130,17 +139,17 @@ func (h *RethinkDBHandler) CreateOrUpdateStatefulSet(r *v1alpha1.RethinkDB, labe
 				},
 			},
 			VolumeClaimTemplates: h.AddPVCs(r),
-		},
-	}
+		}
 
-	err := action.Create(ss)
-	if err != nil && !apierrors.IsAlreadyExists(err) {
+		err = action.Create(ss)
+		if err != nil {
 			return fmt.Errorf("failed to create statefulset: %v", err)
-	}
+		}
 
-	err = query.Get(ss)
-	if err != nil {
-		return fmt.Errorf("failed to get statefulset: %v", err)
+		err = query.Get(ss)
+		if err != nil {
+			return fmt.Errorf("failed to get statefulset: %v", err)
+		}
 	}
 
 	if *ss.Spec.Replicas != replicas {
@@ -156,6 +165,7 @@ func (h *RethinkDBHandler) CreateOrUpdateStatefulSet(r *v1alpha1.RethinkDB, labe
 }
 
 func (h *RethinkDBHandler) AddContainers(r *v1alpha1.RethinkDB) []v1.Container {
+
 	return []v1.Container{{
 		Command: []string{
 			"/usr/bin/rethinkdb",
@@ -177,7 +187,7 @@ func (h *RethinkDBHandler) AddContainers(r *v1alpha1.RethinkDB) []v1.Container {
 			ContainerPort: 29015,
 			Name:          "cluster",
 		}},
-		Resources: r.Spec.Pod.Resources,
+		Resources: h.AddContainerResources(r),
 		Stdin: true,
 		TTY: true,
 		VolumeMounts: []v1.VolumeMount{{
@@ -189,6 +199,14 @@ func (h *RethinkDBHandler) AddContainers(r *v1alpha1.RethinkDB) []v1.Container {
 			MountPath: "/etc/rethinkdb",
 		}},
 	}}
+}
+
+func (h *RethinkDBHandler) AddContainerResources(r *v1alpha1.RethinkDB) v1.ResourceRequirements {
+	resources := v1.ResourceRequirements{}
+	if r.Spec.Pod != nil {
+		resources = r.Spec.Pod.Resources
+	}
+	return resources
 }
 
 func (h *RethinkDBHandler) AddInitContainers(r *v1alpha1.RethinkDB) []v1.Container {
