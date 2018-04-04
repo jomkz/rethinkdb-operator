@@ -3,5 +3,8 @@ kind: "RethinkDB"
 metadata:
   name: rethinkdb-minimal-example
   namespace: default
+  labels:
+    app: rethinkdb
+    cluster: rethinkdb-minimal-example
 spec:
   withService: true

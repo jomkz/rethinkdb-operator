@@ -3,6 +3,9 @@ kind: RethinkDB
 metadata:
   name: rethinkdb-custom-example
   namespace: default
+  labels:
+    app: rethinkdb
+    cluster: rethinkdb-custom-example
 spec:
   nodes: 3
   withService: true
