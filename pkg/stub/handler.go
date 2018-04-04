@@ -17,9 +17,11 @@ package stub
 import (
 	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/coreos/operator-sdk/pkg/sdk/action"
 	"github.com/coreos/operator-sdk/pkg/sdk/handler"
+	"github.com/coreos/operator-sdk/pkg/sdk/query"
 	"github.com/coreos/operator-sdk/pkg/sdk/types"
 	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
 	"github.com/jmckind/rethinkdb-operator/pkg/util/k8sutil"
@@ -27,7 +29,9 @@ import (
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apilabels "k8s.io/apimachinery/pkg/labels"
 )
 
 const (
@@ -51,38 +55,52 @@ type RethinkDBHandler struct {
 func (h *RethinkDBHandler) Handle(ctx types.Context, event types.Event) error {
 	switch o := event.Object.(type) {
 	case *v1alpha1.RethinkDB:
-		logrus.Infof("Received RethinkDB: %v", o.Name)
-		o.SetDefaults()
-		err := h.CreateRethinkDB(o)
+		err := h.HandleRethinkDB(o)
 		if err != nil {
-			return fmt.Errorf("failed to create rethindb: %v", err)
+			return fmt.Errorf("failed to handle rethinkdb: %v", err)
 		}
 	}
 	return nil
 }
 
-func (h *RethinkDBHandler) CreateRethinkDB(r *v1alpha1.RethinkDB) error {
+func (h *RethinkDBHandler) HandleRethinkDB(r *v1alpha1.RethinkDB) error {
+	logrus.Infof("handling rethinkdb: %v", r)
+
 	labels := map[string]string{
 		"app":  "rethinkdb",
 		"cluster": r.Name,
 	}
 
-	logrus.Infof("Creating RethinkDB: %v", r.Name)
+	r.SetDefaults()
 
-	_, err := h.CreateClusterService(r, labels)
-	_, err = h.CreateDriverService(r, labels)
-	_, err = h.CreateStatefulSet(r, labels)
+	err := h.CreateOrUpdateClusterService(r, labels)
+	if err != nil {
+		return fmt.Errorf("failed to create or update cluster service: %v", err)
+	}
 
-	return err
+	err = h.CreateOrUpdateDriverService(r, labels)
+	if err != nil {
+		return fmt.Errorf("failed to create or update driver service: %v", err)
+	}
+
+	err = h.CreateOrUpdateStatefulSet(r, labels)
+	if err != nil {
+		return fmt.Errorf("failed to create or update statefulset: %v", err)
+	}
+
+	err = h.UpdateStatus(r)
+	if err != nil {
+		return fmt.Errorf("failed to update rethinkdb status: %v", err)
+	}
+
+	return nil
 }
 
-func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[string]string) (*apps_v1beta2.StatefulSet, error) {
+func (h *RethinkDBHandler) CreateOrUpdateStatefulSet(r *v1alpha1.RethinkDB, labels map[string]string) error {
 	name := r.Name
-	replicas := r.Spec.Nodes
+	replicas := r.Spec.Size
 	cluster := name + "-cluster"
 	terminationSeconds := int64(5)
-
-	logrus.Infof("Creating StatefulSet: %v", name)
 
 	ss := &apps_v1beta2.StatefulSet{
 		TypeMeta: metav1.TypeMeta{
@@ -116,11 +134,25 @@ func (h *RethinkDBHandler) CreateStatefulSet(r *v1alpha1.RethinkDB, labels map[s
 	}
 
 	err := action.Create(ss)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create StatefulSet: %v", err)
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+			return fmt.Errorf("failed to create statefulset: %v", err)
 	}
 
-	return ss, nil
+	err = query.Get(ss)
+	if err != nil {
+		return fmt.Errorf("failed to get statefulset: %v", err)
+	}
+
+	if *ss.Spec.Replicas != replicas {
+		logrus.Infof("updating statefulset: %v", name)
+		ss.Spec.Replicas = &replicas
+		err = action.Update(ss)
+		if err != nil {
+			return fmt.Errorf("failed to update statefulset: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (h *RethinkDBHandler) AddContainers(r *v1alpha1.RethinkDB) []v1.Container {
@@ -216,11 +248,8 @@ func (h *RethinkDBHandler) AddPVCs(r *v1alpha1.RethinkDB) []v1.PersistentVolumeC
 	return pvcs
 }
 
-func (h *RethinkDBHandler) CreateClusterService(r *v1alpha1.RethinkDB, labels map[string]string) (*v1.Service, error) {
+func (h *RethinkDBHandler) CreateOrUpdateClusterService(r *v1alpha1.RethinkDB, labels map[string]string) error {
 	name := r.Name + "-cluster"
-
-	logrus.Infof("Creating Cluster Service: %v", name)
-
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -231,27 +260,34 @@ func (h *RethinkDBHandler) CreateClusterService(r *v1alpha1.RethinkDB, labels ma
 			Namespace: r.ObjectMeta.Namespace,
 			Labels: labels,
 		},
-		Spec: v1.ServiceSpec{
+	}
+
+	err := query.Get(svc)
+	if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get cluster service: %v", err)
+	}
+
+	if apierrors.IsNotFound(err) {
+		logrus.Infof("creating cluster service: %v", name)
+		svc.Spec = v1.ServiceSpec{
 			ClusterIP: "None",
 			Selector: labels,
 			Ports: []v1.ServicePort{{
 				Port: 29015,
 				Name: "cluster",
 			}},
-		},
+		}
+
+		err = action.Create(svc)
+		if err != nil {
+			return fmt.Errorf("failed to create cluster service: %v", err)
+		}
 	}
 
-	err := action.Create(svc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cluster service: %v", err)
-	}
-
-	return svc, nil
+	return nil
 }
 
-func (h *RethinkDBHandler) CreateDriverService(r *v1alpha1.RethinkDB, labels map[string]string) (*v1.Service, error) {
-	logrus.Infof("Creating Driver Service: %v", r.Name)
-
+func (h *RethinkDBHandler) CreateOrUpdateDriverService(r *v1alpha1.RethinkDB, labels map[string]string) error {
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -262,7 +298,16 @@ func (h *RethinkDBHandler) CreateDriverService(r *v1alpha1.RethinkDB, labels map
 			Namespace: r.ObjectMeta.Namespace,
 			Labels: labels,
 		},
-		Spec: v1.ServiceSpec{
+	}
+
+	err := query.Get(svc)
+	if err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("failed to get driver service: %v", err)
+	}
+
+	if apierrors.IsNotFound(err) {
+		logrus.Infof("creating driver service: %v", r.Name)
+		svc.Spec = v1.ServiceSpec{
 			Selector: labels,
 			SessionAffinity: "ClientIP",
 			Type: "NodePort",
@@ -274,13 +319,45 @@ func (h *RethinkDBHandler) CreateDriverService(r *v1alpha1.RethinkDB, labels map
 				Port: 28015,
 				Name: "driver",
 			}},
+		}
+
+		err = action.Create(svc)
+		if err != nil {
+			return fmt.Errorf("failed to create driver service: %v", err)
+		}
+	}
+
+	return nil
+}
+
+func (h *RethinkDBHandler) UpdateStatus(r *v1alpha1.RethinkDB) error {
+	var podNames []string
+	podList := &v1.PodList{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
 		},
 	}
 
-	err := action.Create(svc)
+	labelSelector := apilabels.SelectorFromSet(r.ObjectMeta.Labels).String()
+	listOps := &metav1.ListOptions{LabelSelector: labelSelector}
+
+	err := query.List(r.ObjectMeta.Namespace, podList, query.WithListOptions(listOps))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create driver service: %v", err)
+		return fmt.Errorf("failed to list pods: %v", err)
 	}
 
-	return svc, nil
+	for _, pod := range podList.Items {
+		podNames = append(podNames, pod.Name)
+	}
+
+	if !reflect.DeepEqual(podNames, r.Status.Pods) {
+		r.Status.Pods = podNames
+		err := action.Update(r)
+		if err != nil {
+			return fmt.Errorf("failed to update rethinkdb status: %v", err)
+		}
+	}
+
+	return nil
 }
