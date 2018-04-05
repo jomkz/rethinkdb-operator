@@ -21,6 +21,7 @@
     "pkg/sdk/action",
     "pkg/sdk/handler",
     "pkg/sdk/informer",
+    "pkg/sdk/query",
     "pkg/sdk/types",
     "pkg/util/k8sutil",
     "version"
@@ -187,6 +188,12 @@
   version = "v2.0.1"
 
 [[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   name = "github.com/sirupsen/logrus"
   packages = ["."]
   revision = "c155da19408a8799da419ed3eeb0cb5db0ad5dbc"
@@ -197,6 +204,12 @@
   packages = ["."]
   revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
   version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
+  version = "v1.2.1"
 
 [[projects]]
   branch = "master"
@@ -414,6 +427,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1118517a990f0b4e8a8fd9ecd1e96a8e41cdf69a460aefafddf2cc5e4fb61a4a"
+  inputs-digest = "9d4b62c0e9f911820be5b7afb1dd110d15649dbfcf42147cb65e196d4a51391f"
   solver-name = "gps-cdcl"
   solver-version = 1
