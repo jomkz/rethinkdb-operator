@@ -24,11 +24,9 @@ import (
 	"github.com/coreos/operator-sdk/pkg/sdk/query"
 	"github.com/coreos/operator-sdk/pkg/sdk/types"
 	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
-	"github.com/jmckind/rethinkdb-operator/pkg/util/k8sutil"
 	"github.com/sirupsen/logrus"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
-	"k8s.io/client-go/kubernetes"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apilabels "k8s.io/apimachinery/pkg/labels"
@@ -43,13 +41,11 @@ directory=/var/lib/rethinkdb/default
 func NewRethinkDBHandler() handler.Handler {
 	return &RethinkDBHandler{
 		namespace: os.Getenv("MY_POD_NAMESPACE"),
-		kubecli:	 k8sutil.MustNewKubeClient(),
 	}
 }
 
 type RethinkDBHandler struct {
 	namespace string
-	kubecli		kubernetes.Interface
 }
 
 func (h *RethinkDBHandler) Handle(ctx types.Context, event types.Event) error {
