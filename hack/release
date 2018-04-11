@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+export RELEASE_VERSION=0.0.2
+
+operator-sdk build jmckind/rethinkdb-operator:${RELEASE_VERSION}
+docker push jmckind/rethinkdb-operator:${RELEASE_VERSION}
