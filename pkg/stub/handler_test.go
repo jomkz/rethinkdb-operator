@@ -15,10 +15,30 @@
 package stub
 
 import (
-  "testing"
-  "github.com/stretchr/testify/assert"
+	"testing"
+
+	"github.com/coreos/operator-sdk/pkg/sdk/types"
+	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestSomething(t *testing.T) {
-  assert.True(t, true, "True is true!")
+func TestHandleWithNilObject(t *testing.T) {
+	context := types.Context{}
+	event := types.Event{}
+	assert.Nil(t, event.Object)
+
+	handler := NewRethinkDBHandler()
+	err := handler.Handle(context, event)
+	assert.Nil(t, err)
+}
+
+func TestHandleWithDefaultRethinkDB(t *testing.T) {
+	context := types.Context{}
+	event := types.Event{Object: &v1alpha1.RethinkDB{}}
+
+	handler := NewRethinkDBHandler()
+	err := handler.Handle(context, event)
+
+	// TODO: Fix this once mocking setup
+	assert.NotNil(t, err)
 }
