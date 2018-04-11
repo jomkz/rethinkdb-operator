@@ -26,8 +26,8 @@
     "pkg/util/k8sutil",
     "version"
   ]
-  revision = "4dde66ab241ea83f5c12625ad2509174daf9c572"
-  version = "v0.0.3"
+  revision = "9e376a898dd785f3fe61626a9ac1eabea841c109"
+  version = "v0.0.4"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -308,18 +308,6 @@
   version = "kubernetes-1.9.3"
 
 [[projects]]
-  name = "k8s.io/apiextensions-apiserver"
-  packages = [
-    "pkg/apis/apiextensions",
-    "pkg/apis/apiextensions/v1beta1",
-    "pkg/client/clientset/clientset",
-    "pkg/client/clientset/clientset/scheme",
-    "pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
-  ]
-  revision = "f1425805c0335c1f5b23e70f0154747b3df5a16a"
-  version = "kubernetes-1.9.3"
-
-[[projects]]
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -427,6 +415,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9d4b62c0e9f911820be5b7afb1dd110d15649dbfcf42147cb65e196d4a51391f"
+  inputs-digest = "99626063b05205693f49f6e05a0420e4a74436ea4de9aff20f17cf135b9eb1ef"
   solver-name = "gps-cdcl"
   solver-version = 1
