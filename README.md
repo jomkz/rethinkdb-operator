@@ -8,16 +8,10 @@ TODO
 
 ## Development
 
-Build the operator, remember to update the version.
+Build the operator and push the new image, remember to update the version.
 
 ```
-operator-sdk build jmckind/rethinkdb-operator:<VERSION>
-```
-
-Push the new image, remember to update the version.
-
-```
-docker push jmckind/rethinkdb-operator:<VERSION>
+./hack/release
 ```
 
 ## Testing
@@ -25,11 +19,11 @@ docker push jmckind/rethinkdb-operator:<VERSION>
 Run the tests.
 
 ```
-go test ./... -timeout 120s -v -short -cover -coverprofile=tmp/_output/coverage.out
+./hack/test
 ```
 
 Generate the code coverage report.
 
 ```
-go tool cover -html=tmp/_output/coverage.out
+./hack/cover
 ```
