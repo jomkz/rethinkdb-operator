@@ -17,41 +17,23 @@ package stub
 import (
 	"testing"
 
-	"github.com/coreos/operator-sdk/pkg/sdk/types"
-	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
 
-type HandlerTestSuite struct {
+type ClusterTestSuite struct {
 	suite.Suite
 }
 
-func (suite *HandlerTestSuite) SetupTest() {
+func (suite *ClusterTestSuite) SetupTest() {
 	// Run before each test...
 }
 
-func (suite *HandlerTestSuite) TestHandleWithNilObject() {
-	context := types.Context{}
-	event := types.Event{}
-	assert.Nil(suite.T(), event.Object)
-
-	handler := NewRethinkDBHandler()
-	err := handler.Handle(context, event)
-	assert.Nil(suite.T(), err)
-}
-
-func (suite *HandlerTestSuite) TestHandleWithDefaultRethinkDB() {
-	context := types.Context{}
-	event := types.Event{Object: &v1alpha1.RethinkDB{}}
-
-	handler := NewRethinkDBHandler()
-	err := handler.Handle(context, event)
-
-	assert.Error(suite.T(), err)
+func (suite *ClusterTestSuite) TestSomething() {
+	assert.True(suite.T(), true, "test passed...")
 }
 
 // Run test suite...
-func TestHandlerTestSuite(t *testing.T) {
-	suite.Run(t, new(HandlerTestSuite))
+func TestClusterTestSuite(t *testing.T) {
+	suite.Run(t, new(ClusterTestSuite))
 }

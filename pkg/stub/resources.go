@@ -17,12 +17,11 @@ package stub
 import (
 	"fmt"
 
-	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func addContainers(r *v1alpha1.RethinkDB) []v1.Container {
+func (c *RethinkDBCluster) AddContainers() []v1.Container {
 	return []v1.Container{{
 		Command: []string{
 			"/usr/bin/rethinkdb",
@@ -30,7 +29,7 @@ func addContainers(r *v1alpha1.RethinkDB) []v1.Container {
 			"--config-file",
 			"/etc/rethinkdb/rethinkdb.conf",
 		},
-		Image: fmt.Sprintf("%s:%s", r.Spec.BaseImage, r.Spec.Version),
+		Image: fmt.Sprintf("%s:%s", c.Resource.Spec.BaseImage, c.Resource.Spec.Version),
 		Name:  "rethinkdb",
 		Ports: []v1.ContainerPort{{
 			ContainerPort: 8080,
@@ -44,7 +43,7 @@ func addContainers(r *v1alpha1.RethinkDB) []v1.Container {
 				ContainerPort: 29015,
 				Name:          "cluster",
 			}},
-		Resources: addContainerResources(r),
+		Resources: c.AddContainerResources(),
 		Stdin:     true,
 		TTY:       true,
 		VolumeMounts: []v1.VolumeMount{{
@@ -58,15 +57,15 @@ func addContainers(r *v1alpha1.RethinkDB) []v1.Container {
 	}}
 }
 
-func addContainerResources(r *v1alpha1.RethinkDB) v1.ResourceRequirements {
+func (c *RethinkDBCluster) AddContainerResources() v1.ResourceRequirements {
 	resources := v1.ResourceRequirements{}
-	if r.Spec.Pod != nil {
-		resources = r.Spec.Pod.Resources
+	if c.Resource.Spec.Pod != nil {
+		resources = c.Resource.Spec.Pod.Resources
 	}
 	return resources
 }
 
-func addEmptyDirVolume(name string) v1.Volume {
+func (c *RethinkDBCluster) AddEmptyDirVolume(name string) v1.Volume {
 	return v1.Volume{
 		Name: name,
 		VolumeSource: v1.VolumeSource{
@@ -75,8 +74,8 @@ func addEmptyDirVolume(name string) v1.Volume {
 	}
 }
 
-func addInitContainers(r *v1alpha1.RethinkDB) []v1.Container {
-	name := r.Name
+func (c *RethinkDBCluster) AddInitContainers() []v1.Container {
+	name := c.Resource.Name
 	cluster := name + "-cluster"
 
 	return []v1.Container{{
@@ -95,47 +94,47 @@ func addInitContainers(r *v1alpha1.RethinkDB) []v1.Container {
 }
 
 // addOwnerRefToObject appends the desired OwnerReference to the object
-func addOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
+func (c *RethinkDBCluster) AddOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
 	obj.SetOwnerReferences(append(obj.GetOwnerReferences(), ownerRef))
 }
 
-func addPVCs(r *v1alpha1.RethinkDB) []v1.PersistentVolumeClaim {
+func (c *RethinkDBCluster) AddPVCs() []v1.PersistentVolumeClaim {
 	var pvcs []v1.PersistentVolumeClaim
 
-	if r.IsPVEnabled() {
+	if c.Resource.IsPVEnabled() {
 		pvcs = append(pvcs, v1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "rethinkdb-data",
-				Namespace: r.ObjectMeta.Namespace,
-				Labels:    r.ObjectMeta.Labels,
+				Namespace: c.Resource.ObjectMeta.Namespace,
+				Labels:    c.Resource.ObjectMeta.Labels,
 			},
-			Spec: *r.Spec.Pod.PersistentVolumeClaimSpec,
+			Spec: *c.Resource.Spec.Pod.PersistentVolumeClaimSpec,
 		})
 	}
 
 	return pvcs
 }
 
-func addVolumes(r *v1alpha1.RethinkDB) []v1.Volume {
+func (c *RethinkDBCluster) AddVolumes() []v1.Volume {
 	var volumes []v1.Volume
 
-	volumes = append(volumes, addEmptyDirVolume("rethinkdb-etc"))
+	volumes = append(volumes, c.AddEmptyDirVolume("rethinkdb-etc"))
 
-	if !r.IsPVEnabled() {
-		volumes = append(volumes, addEmptyDirVolume("rethinkdb-data"))
+	if !c.Resource.IsPVEnabled() {
+		volumes = append(volumes, c.AddEmptyDirVolume("rethinkdb-data"))
 	}
 
 	return volumes
 }
 
 // asOwner returns an OwnerReference set as the rethinkdb CR
-func asOwner(r *v1alpha1.RethinkDB) metav1.OwnerReference {
+func (c *RethinkDBCluster) AsOwner() metav1.OwnerReference {
 	controller := true
 	return metav1.OwnerReference{
-		APIVersion: r.APIVersion,
-		Kind:       r.Kind,
-		Name:       r.Name,
-		UID:        r.UID,
+		APIVersion: c.Resource.APIVersion,
+		Kind:       c.Resource.Kind,
+		Name:       c.Resource.Name,
+		UID:        c.Resource.UID,
 		Controller: &controller,
 	}
 }

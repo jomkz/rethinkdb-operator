@@ -29,9 +29,41 @@ import (
 	apilabels "k8s.io/apimachinery/pkg/labels"
 )
 
-func createOrUpdateStatefulSet(r *v1alpha1.RethinkDB) error {
-	name := r.Name
-	replicas := r.Spec.Size
+type RethinkDBCluster struct {
+	Resource *v1alpha1.RethinkDB
+}
+
+func NewRethinkDBCluster(r *v1alpha1.RethinkDB) RethinkDBCluster {
+	return RethinkDBCluster{Resource: r}
+}
+
+func (c *RethinkDBCluster) CreateOrUpdateCluster() error {
+	err := c.CreateOrUpdateClusterService()
+	if err != nil {
+		return fmt.Errorf("failed to create or update cluster service: %v", err)
+	}
+
+	err = c.CreateOrUpdateDriverService()
+	if err != nil {
+		return fmt.Errorf("failed to create or update driver service: %v", err)
+	}
+
+	err = c.CreateOrUpdateStatefulSet()
+	if err != nil {
+		return fmt.Errorf("failed to create or update statefulset: %v", err)
+	}
+
+	err = c.UpdateStatus()
+	if err != nil {
+		return fmt.Errorf("failed to update rethinkdb status: %v", err)
+	}
+
+	return nil
+}
+
+func (c *RethinkDBCluster) CreateOrUpdateStatefulSet() error {
+	name := c.Resource.Name
+	replicas := c.Resource.Spec.Size
 	cluster := name + "-cluster"
 	terminationSeconds := int64(5)
 
@@ -42,8 +74,8 @@ func createOrUpdateStatefulSet(r *v1alpha1.RethinkDB) error {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: r.ObjectMeta.Namespace,
-			Labels:    labelsForRethinkDB(r),
+			Namespace: c.Resource.ObjectMeta.Namespace,
+			Labels:    c.LabelsForCluster(),
 		},
 	}
 
@@ -57,24 +89,24 @@ func createOrUpdateStatefulSet(r *v1alpha1.RethinkDB) error {
 		ss.Spec = apps_v1beta2.StatefulSetSpec{
 			Replicas: &replicas,
 			Selector: &metav1.LabelSelector{
-				MatchLabels: labelsForRethinkDB(r),
+				MatchLabels: c.LabelsForCluster(),
 			},
 			ServiceName: cluster,
 			Template: v1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
-					Labels: labelsForRethinkDB(r),
+					Labels: c.LabelsForCluster(),
 				},
 				Spec: v1.PodSpec{
-					Containers:                    addContainers(r),
-					InitContainers:                addInitContainers(r),
+					Containers:                    c.AddContainers(),
+					InitContainers:                c.AddInitContainers(),
 					TerminationGracePeriodSeconds: &terminationSeconds,
-					Volumes: addVolumes(r),
+					Volumes: c.AddVolumes(),
 				},
 			},
-			VolumeClaimTemplates: addPVCs(r),
+			VolumeClaimTemplates: c.AddPVCs(),
 		}
 
-		addOwnerRefToObject(ss, asOwner(r))
+		c.AddOwnerRefToObject(ss, c.AsOwner())
 		err = action.Create(ss)
 		if err != nil {
 			return fmt.Errorf("failed to create statefulset: %v", err)
@@ -98,8 +130,8 @@ func createOrUpdateStatefulSet(r *v1alpha1.RethinkDB) error {
 	return nil
 }
 
-func createOrUpdateClusterService(r *v1alpha1.RethinkDB) error {
-	name := r.Name + "-cluster"
+func (c *RethinkDBCluster) CreateOrUpdateClusterService() error {
+	name := c.Resource.Name + "-cluster"
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -107,8 +139,8 @@ func createOrUpdateClusterService(r *v1alpha1.RethinkDB) error {
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: r.ObjectMeta.Namespace,
-			Labels:    labelsForRethinkDB(r),
+			Namespace: c.Resource.ObjectMeta.Namespace,
+			Labels:    c.LabelsForCluster(),
 		},
 	}
 
@@ -121,14 +153,14 @@ func createOrUpdateClusterService(r *v1alpha1.RethinkDB) error {
 		logrus.Infof("creating cluster service: %v", name)
 		svc.Spec = v1.ServiceSpec{
 			ClusterIP: "None",
-			Selector:  labelsForRethinkDB(r),
+			Selector:  c.LabelsForCluster(),
 			Ports: []v1.ServicePort{{
 				Port: 29015,
 				Name: "cluster",
 			}},
 		}
 
-		addOwnerRefToObject(svc, asOwner(r))
+		c.AddOwnerRefToObject(svc, c.AsOwner())
 		err = action.Create(svc)
 		if err != nil {
 			return fmt.Errorf("failed to create cluster service: %v", err)
@@ -138,16 +170,16 @@ func createOrUpdateClusterService(r *v1alpha1.RethinkDB) error {
 	return nil
 }
 
-func createOrUpdateDriverService(r *v1alpha1.RethinkDB) error {
+func (c *RethinkDBCluster) CreateOrUpdateDriverService() error {
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      r.Name,
-			Namespace: r.ObjectMeta.Namespace,
-			Labels:    labelsForRethinkDB(r),
+			Name:      c.Resource.Name,
+			Namespace: c.Resource.ObjectMeta.Namespace,
+			Labels:    c.LabelsForCluster(),
 		},
 	}
 
@@ -157,9 +189,9 @@ func createOrUpdateDriverService(r *v1alpha1.RethinkDB) error {
 	}
 
 	if apierrors.IsNotFound(err) {
-		logrus.Infof("creating driver service: %v", r.Name)
+		logrus.Infof("creating driver service: %v", c.Resource.Name)
 		svc.Spec = v1.ServiceSpec{
-			Selector:        labelsForRethinkDB(r),
+			Selector:        c.LabelsForCluster(),
 			SessionAffinity: "ClientIP",
 			Type:            "NodePort",
 			Ports: []v1.ServicePort{{
@@ -172,7 +204,7 @@ func createOrUpdateDriverService(r *v1alpha1.RethinkDB) error {
 				}},
 		}
 
-		addOwnerRefToObject(svc, asOwner(r))
+		c.AddOwnerRefToObject(svc, c.AsOwner())
 		err = action.Create(svc)
 		if err != nil {
 			return fmt.Errorf("failed to create driver service: %v", err)
@@ -182,16 +214,14 @@ func createOrUpdateDriverService(r *v1alpha1.RethinkDB) error {
 	return nil
 }
 
-// labelsForMemcached returns the labels for selecting the resources
-// belonging to the given rethinkdb CR name.
-func labelsForRethinkDB(r *v1alpha1.RethinkDB) map[string]string {
+func (c *RethinkDBCluster) LabelsForCluster() map[string]string {
 	return map[string]string{
 		"app":     "rethinkdb",
-		"cluster": r.Name,
+		"cluster": c.Resource.Name,
 	}
 }
 
-func updateStatus(r *v1alpha1.RethinkDB) error {
+func (c *RethinkDBCluster) UpdateStatus() error {
 	var podNames []string
 	podList := &v1.PodList{
 		TypeMeta: metav1.TypeMeta{
@@ -200,10 +230,10 @@ func updateStatus(r *v1alpha1.RethinkDB) error {
 		},
 	}
 
-	labelSelector := apilabels.SelectorFromSet(r.ObjectMeta.Labels).String()
+	labelSelector := apilabels.SelectorFromSet(c.Resource.ObjectMeta.Labels).String()
 	listOps := &metav1.ListOptions{LabelSelector: labelSelector}
 
-	err := query.List(r.ObjectMeta.Namespace, podList, query.WithListOptions(listOps))
+	err := query.List(c.Resource.ObjectMeta.Namespace, podList, query.WithListOptions(listOps))
 	if err != nil {
 		return fmt.Errorf("failed to list pods: %v", err)
 	}
@@ -212,9 +242,9 @@ func updateStatus(r *v1alpha1.RethinkDB) error {
 		podNames = append(podNames, pod.Name)
 	}
 
-	if !reflect.DeepEqual(podNames, r.Status.Pods) {
-		r.Status.Pods = podNames
-		err := action.Update(r)
+	if !reflect.DeepEqual(podNames, c.Resource.Status.Pods) {
+		c.Resource.Status.Pods = podNames
+		err := action.Update(c.Resource)
 		if err != nil {
 			return fmt.Errorf("failed to update rethinkdb status: %v", err)
 		}
