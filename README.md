@@ -4,20 +4,37 @@ A Kubernetes operator to manage RethinkDB instances.
 
 ## Overview
 
-This Operator is based on the Operator Framework and is used for managing
-RethinkDB clusters on Kubernetes.
+This Operator is built using the [Operator SDK](https://github.com/operator-framework/operator-sdk), which is part of the [Operator Framework](https://github.com/operator-framework/) and manages one or more RethinkDB instances deployed on Kubernetes.
 
 ## Usage
 
+The first step is to deploy the RethinkDB Operator into the cluster where it
+will watch for requests to create `RethinkDB` resources, much like the native
+Kubernetes Deployment Controller watches for Deployment resource requests.
+
 #### Deploy RethinkDB Operator
 
-The first step is to install the RethinkDB Operator in the Kubernetes cluster.
 The `deploy` directory contains the manifests needed to properly install the
 Operator.
 
 ```
 kubectl apply -f deploy
 ```
+
+You can watch the list of pods and wait until the Operator pod is in a Running
+state, it should not take long.
+
+```
+kubectl get pods -wl name=rethinkdb-operator
+```
+
+You can have a look at the logs for troubleshooting if needed.
+
+```
+kubectl logs -l name=rethinkdb-operator
+```
+
+Once the RethinkDB Operator is deployed, Have a look in the `examples` directory for example manifests that create `RethinkDB` resources.
 
 #### Create RethinkDB Cluster
 
@@ -27,6 +44,12 @@ RethinkDB clusters using the Operator.
 
 ```
 kubectl apply -f example/rethinkdb-minimal.yaml
+```
+
+Watch the list of pods to see that each requested node starts successfully.
+
+```
+kubectl get pods -wl cluster=rethinkdb-minimal-example
 ```
 
 #### Destroy RethinkDB Cluster
@@ -40,16 +63,16 @@ kubectl delete -f example/rethinkdb-minimal.yaml
 #### Persistent Volumes
 
 The RethinkDB Operator supports the use of Persistent Volumes for each node in
-the RethinkDB cluster. See (rethinkdb-custom.yaml)[example/rethinkdb-custom.yaml]
+the RethinkDB cluster. See [rethinkdb-custom.yaml](example/rethinkdb-custom.yaml)
 for the syntax to enable.
 
 ```
 kubectl apply -f example/rethinkdb-custom.yaml
 ```
 
-Delete a RethinkDB cluster using Persistent Volumes. Remember to remove the
-left-over volumes when the cluster is no longer needed, as these will not be
-removed automatically when the RethinkDB cluster is deleted.
+When deleting a RethinkDB cluster that uses Persistent Volumes, remember to
+remove the left-over volumes when the cluster is no longer needed, as these will
+not be removed automatically.
 
 ```
 kubectl delete rethinkdb,pvc -l cluster=rethinkdb-custom-example
@@ -57,19 +80,24 @@ kubectl delete rethinkdb,pvc -l cluster=rethinkdb-custom-example
 
 ## Development
 
-Build the operator and push the new image, remember to update the version.
+Clone the repository to a location on your workstation, generally this should be in someplace like `$GOPATH/src/github.com/ORG/REPO`.
+
+Navigate to the location where the repository has been cloned and install the dependencies.
 
 ```
-./hack/release
+cd YOUR_REPO_PATH
+dep ensure
 ```
 
-When using minikube for local testing, it may be necessary to increase the resources.
+#### Minikube
+
+When using minikube for local development and testing, it may be necessary to increase the resources for the minikube VM.
 
 ```
 minikube start --cpus 2 --memory 8192 --disk-size 40g
 ```
 
-## Testing
+#### Testing
 
 Run the tests.
 
@@ -81,4 +109,12 @@ Generate the code coverage report.
 
 ```
 ./hack/cover
+```
+
+#### Release
+
+Build the operator and push the new image, remember to update the version.
+
+```
+./hack/release
 ```
