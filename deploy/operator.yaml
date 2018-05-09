@@ -1,17 +1,3 @@
-apiVersion: apiextensions.k8s.io/v1beta1
-kind: CustomResourceDefinition
-metadata:
-  name: rethinkdbs.operator.rethinkdb.com
-spec:
-  group: operator.rethinkdb.com
-  names:
-    kind: RethinkDB
-    listKind: RethinkDBList
-    plural: rethinkdbs
-    singular: rethinkdb
-  scope: Namespaced
-  version: v1alpha1
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -28,8 +14,8 @@ spec:
     spec:
       containers:
         - name: rethinkdb-operator
-          tty: true
           image: jmckind/rethinkdb-operator:0.0.2
           command:
           - rethinkdb-operator
           imagePullPolicy: Always
+          tty: true
