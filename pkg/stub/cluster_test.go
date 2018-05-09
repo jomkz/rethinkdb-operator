@@ -17,9 +17,40 @@ package stub
 import (
 	"testing"
 
+	"github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 )
+
+type MockCluster struct {
+	mock.Mock
+}
+
+func (m *MockCluster) CreateOrUpdateClusterService() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockCluster) CreateOrUpdateDriverService() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockCluster) CreateOrUpdateStatefulSet() error {
+	args := m.Called()
+	return args.Error(0)
+}
+
+func (m *MockCluster) SetDefaults() bool {
+	args := m.Called()
+	return args.Bool(0)
+}
+
+func (m *MockCluster) UpdateStatus() error {
+	args := m.Called()
+	return args.Error(0)
+}
 
 type ClusterTestSuite struct {
 	suite.Suite
@@ -29,8 +60,14 @@ func (suite *ClusterTestSuite) SetupTest() {
 	// Run before each test...
 }
 
-func (suite *ClusterTestSuite) TestSomething() {
-	assert.True(suite.T(), true, "test passed...")
+func (suite *ClusterTestSuite) TestCreateClusterWithNilResource() {
+	cluster := NewRethinkDBCluster(nil)
+	assert.Nil(suite.T(), cluster.Resource)
+}
+
+func (suite *ClusterTestSuite) TestCreateClusterWithValidInput() {
+	cluster := NewRethinkDBCluster(&v1alpha1.RethinkDB{})
+	assert.NotNil(suite.T(), cluster.Resource)
 }
 
 // Run test suite...

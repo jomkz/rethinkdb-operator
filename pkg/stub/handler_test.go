@@ -15,10 +15,11 @@
 package stub
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/coreos/operator-sdk/pkg/sdk/types"
 	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
+	"github.com/operator-framework/operator-sdk/pkg/sdk/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
 )
@@ -49,6 +50,85 @@ func (suite *HandlerTestSuite) TestHandleWithDefaultRethinkDB() {
 	err := handler.Handle(context, event)
 
 	assert.Error(suite.T(), err)
+}
+
+func (suite *HandlerTestSuite) TestHandleRethinkDBWithNilInput() {
+	handler := NewRethinkDBHandler()
+	err := handler.HandleRethinkDB(nil)
+	assert.Error(suite.T(), err)
+}
+
+func (suite *HandlerTestSuite) TestHandleRethinkDBWithValidInput() {
+	cluster := new(MockCluster)
+	cluster.On("SetDefaults").Return(false)
+	cluster.On("CreateOrUpdateClusterService").Return(nil)
+	cluster.On("CreateOrUpdateDriverService").Return(nil)
+	cluster.On("CreateOrUpdateStatefulSet").Return(nil)
+	cluster.On("UpdateStatus").Return(nil)
+
+	handler := NewRethinkDBHandler()
+	err := handler.HandleRethinkDB(cluster)
+
+	cluster.AssertExpectations(suite.T())
+	assert.Nil(suite.T(), err)
+}
+
+func (suite *HandlerTestSuite) TestHandleRethinkDBWithClusterServiceFailure() {
+	cluster := new(MockCluster)
+	cluster.On("SetDefaults").Return(false)
+	cluster.On("CreateOrUpdateClusterService").Return(errors.New("failed"))
+
+	handler := NewRethinkDBHandler()
+	err := handler.HandleRethinkDB(cluster)
+
+	cluster.AssertExpectations(suite.T())
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), "failed to create or update cluster service: failed", err.Error())
+}
+
+func (suite *HandlerTestSuite) TestHandleRethinkDBWithDriverServiceFailure() {
+	cluster := new(MockCluster)
+	cluster.On("SetDefaults").Return(false)
+	cluster.On("CreateOrUpdateClusterService").Return(nil)
+	cluster.On("CreateOrUpdateDriverService").Return(errors.New("failed"))
+
+	handler := NewRethinkDBHandler()
+	err := handler.HandleRethinkDB(cluster)
+
+	cluster.AssertExpectations(suite.T())
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), "failed to create or update driver service: failed", err.Error())
+}
+
+func (suite *HandlerTestSuite) TestHandleRethinkDBWithStatefulSetFailure() {
+	cluster := new(MockCluster)
+	cluster.On("SetDefaults").Return(false)
+	cluster.On("CreateOrUpdateClusterService").Return(nil)
+	cluster.On("CreateOrUpdateDriverService").Return(nil)
+	cluster.On("CreateOrUpdateStatefulSet").Return(errors.New("failed"))
+
+	handler := NewRethinkDBHandler()
+	err := handler.HandleRethinkDB(cluster)
+
+	cluster.AssertExpectations(suite.T())
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), "failed to create or update statefulset: failed", err.Error())
+}
+
+func (suite *HandlerTestSuite) TestHandleRethinkDBWithUpdateStatusFailure() {
+	cluster := new(MockCluster)
+	cluster.On("SetDefaults").Return(false)
+	cluster.On("CreateOrUpdateClusterService").Return(nil)
+	cluster.On("CreateOrUpdateDriverService").Return(nil)
+	cluster.On("CreateOrUpdateStatefulSet").Return(nil)
+	cluster.On("UpdateStatus").Return(errors.New("failed"))
+
+	handler := NewRethinkDBHandler()
+	err := handler.HandleRethinkDB(cluster)
+
+	cluster.AssertExpectations(suite.T())
+	assert.Error(suite.T(), err)
+	assert.Equal(suite.T(), "failed to update rethinkdb status: failed", err.Error())
 }
 
 // Run test suite...
