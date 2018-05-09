@@ -21,7 +21,24 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func (c *RethinkDBCluster) AddContainers() []v1.Container {
+func (c *RethinkDBCluster) AddOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
+	obj.SetOwnerReferences(append(obj.GetOwnerReferences(), ownerRef))
+}
+
+// asOwner returns an OwnerReference set as the rethinkdb CR
+func (c *RethinkDBCluster) AsOwner() metav1.OwnerReference {
+	controller := true
+	r := c.Resource
+	return metav1.OwnerReference{
+		APIVersion: r.APIVersion,
+		Kind:       r.Kind,
+		Name:       r.Name,
+		UID:        r.UID,
+		Controller: &controller,
+	}
+}
+
+func (c *RethinkDBCluster) ConstructContainers() []v1.Container {
 	return []v1.Container{{
 		Command: []string{
 			"/usr/bin/rethinkdb",
@@ -43,7 +60,7 @@ func (c *RethinkDBCluster) AddContainers() []v1.Container {
 				ContainerPort: 29015,
 				Name:          "cluster",
 			}},
-		Resources: c.AddContainerResources(),
+		Resources: c.ConstructContainerResources(),
 		Stdin:     true,
 		TTY:       true,
 		VolumeMounts: []v1.VolumeMount{{
@@ -57,7 +74,7 @@ func (c *RethinkDBCluster) AddContainers() []v1.Container {
 	}}
 }
 
-func (c *RethinkDBCluster) AddContainerResources() v1.ResourceRequirements {
+func (c *RethinkDBCluster) ConstructContainerResources() v1.ResourceRequirements {
 	resources := v1.ResourceRequirements{}
 	if c.Resource.Spec.Pod != nil {
 		resources = c.Resource.Spec.Pod.Resources
@@ -65,7 +82,7 @@ func (c *RethinkDBCluster) AddContainerResources() v1.ResourceRequirements {
 	return resources
 }
 
-func (c *RethinkDBCluster) AddEmptyDirVolume(name string) v1.Volume {
+func (c *RethinkDBCluster) ConstructEmptyDirVolume(name string) v1.Volume {
 	return v1.Volume{
 		Name: name,
 		VolumeSource: v1.VolumeSource{
@@ -74,7 +91,7 @@ func (c *RethinkDBCluster) AddEmptyDirVolume(name string) v1.Volume {
 	}
 }
 
-func (c *RethinkDBCluster) AddInitContainers() []v1.Container {
+func (c *RethinkDBCluster) ConstructInitContainers() []v1.Container {
 	name := c.Resource.Name
 	cluster := name + "-cluster"
 
@@ -93,48 +110,32 @@ func (c *RethinkDBCluster) AddInitContainers() []v1.Container {
 	}}
 }
 
-// addOwnerRefToObject appends the desired OwnerReference to the object
-func (c *RethinkDBCluster) AddOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
-	obj.SetOwnerReferences(append(obj.GetOwnerReferences(), ownerRef))
-}
-
-func (c *RethinkDBCluster) AddPVCs() []v1.PersistentVolumeClaim {
+func (c *RethinkDBCluster) ConstructPVCs() []v1.PersistentVolumeClaim {
 	var pvcs []v1.PersistentVolumeClaim
+	r := c.Resource
 
-	if c.Resource.IsPVEnabled() {
+	if r.IsPVEnabled() {
 		pvcs = append(pvcs, v1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "rethinkdb-data",
-				Namespace: c.Resource.ObjectMeta.Namespace,
-				Labels:    c.Resource.ObjectMeta.Labels,
+				Namespace: r.ObjectMeta.Namespace,
+				Labels:    r.ObjectMeta.Labels,
 			},
-			Spec: *c.Resource.Spec.Pod.PersistentVolumeClaimSpec,
+			Spec: *r.Spec.Pod.PersistentVolumeClaimSpec,
 		})
 	}
 
 	return pvcs
 }
 
-func (c *RethinkDBCluster) AddVolumes() []v1.Volume {
+func (c *RethinkDBCluster) ConstructVolumes() []v1.Volume {
 	var volumes []v1.Volume
 
-	volumes = append(volumes, c.AddEmptyDirVolume("rethinkdb-etc"))
+	volumes = append(volumes, c.ConstructEmptyDirVolume("rethinkdb-etc"))
 
 	if !c.Resource.IsPVEnabled() {
-		volumes = append(volumes, c.AddEmptyDirVolume("rethinkdb-data"))
+		volumes = append(volumes, c.ConstructEmptyDirVolume("rethinkdb-data"))
 	}
 
 	return volumes
-}
-
-// asOwner returns an OwnerReference set as the rethinkdb CR
-func (c *RethinkDBCluster) AsOwner() metav1.OwnerReference {
-	controller := true
-	return metav1.OwnerReference{
-		APIVersion: c.Resource.APIVersion,
-		Kind:       c.Resource.Kind,
-		Name:       c.Resource.Name,
-		UID:        c.Resource.UID,
-		Controller: &controller,
-	}
 }
