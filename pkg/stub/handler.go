@@ -15,10 +15,11 @@
 package stub
 
 import (
-	"github.com/coreos/operator-sdk/pkg/sdk/handler"
-	"github.com/coreos/operator-sdk/pkg/sdk/types"
+	"fmt"
+
 	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
-	"github.com/sirupsen/logrus"
+	"github.com/operator-framework/operator-sdk/pkg/sdk/handler"
+	"github.com/operator-framework/operator-sdk/pkg/sdk/types"
 )
 
 const (
@@ -28,24 +29,47 @@ directory=/var/lib/rethinkdb/default
 )
 
 type RethinkDBHandler struct {
-	// TODO...
+	handler.Handler
 }
 
-func NewRethinkDBHandler() handler.Handler {
+func NewRethinkDBHandler() *RethinkDBHandler {
 	return &RethinkDBHandler{}
 }
 
 func (h *RethinkDBHandler) Handle(ctx types.Context, event types.Event) error {
 	switch o := event.Object.(type) {
 	case *v1alpha1.RethinkDB:
-		return h.HandleRethinkDB(o)
+		return h.HandleRethinkDB(NewRethinkDBCluster(o))
 	}
 	return nil
 }
 
-func (h *RethinkDBHandler) HandleRethinkDB(r *v1alpha1.RethinkDB) error {
-	logrus.Infof("handling rethinkdb: %v", r.Name)
-	r.SetDefaults()
-	cluster := NewRethinkDBCluster(r)
-	return cluster.CreateOrUpdateCluster()
+func (h *RethinkDBHandler) HandleRethinkDB(c RethinkDBController) error {
+	if c == nil {
+		return fmt.Errorf("controller cannot be nil")
+	}
+
+	c.SetDefaults()
+
+	err := c.CreateOrUpdateClusterService()
+	if err != nil {
+		return fmt.Errorf("failed to create or update cluster service: %v", err)
+	}
+
+	err = c.CreateOrUpdateDriverService()
+	if err != nil {
+		return fmt.Errorf("failed to create or update driver service: %v", err)
+	}
+
+	err = c.CreateOrUpdateStatefulSet()
+	if err != nil {
+		return fmt.Errorf("failed to create or update statefulset: %v", err)
+	}
+
+	err = c.UpdateStatus()
+	if err != nil {
+		return fmt.Errorf("failed to update rethinkdb status: %v", err)
+	}
+
+	return nil
 }

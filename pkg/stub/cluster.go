@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/coreos/operator-sdk/pkg/sdk/action"
-	"github.com/coreos/operator-sdk/pkg/sdk/query"
 	v1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
+	"github.com/operator-framework/operator-sdk/pkg/sdk/action"
+	"github.com/operator-framework/operator-sdk/pkg/sdk/query"
 	"github.com/sirupsen/logrus"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	"k8s.io/api/core/v1"
@@ -29,55 +29,27 @@ import (
 	apilabels "k8s.io/apimachinery/pkg/labels"
 )
 
+type RethinkDBController interface {
+	CreateOrUpdateClusterService() error
+	CreateOrUpdateDriverService() error
+	CreateOrUpdateStatefulSet() error
+	SetDefaults() bool
+	UpdateStatus() error
+}
+
 type RethinkDBCluster struct {
 	Resource *v1alpha1.RethinkDB
+
+	RethinkDBController
 }
 
-func NewRethinkDBCluster(r *v1alpha1.RethinkDB) RethinkDBCluster {
-	return RethinkDBCluster{Resource: r}
+func NewRethinkDBCluster(r *v1alpha1.RethinkDB) *RethinkDBCluster {
+	return &RethinkDBCluster{Resource: r}
 }
 
-func (c *RethinkDBCluster) CreateOrUpdateCluster() error {
-	err := c.CreateOrUpdateClusterService()
-	if err != nil {
-		return fmt.Errorf("failed to create or update cluster service: %v", err)
-	}
-
-	err = c.CreateOrUpdateDriverService()
-	if err != nil {
-		return fmt.Errorf("failed to create or update driver service: %v", err)
-	}
-
-	err = c.CreateOrUpdateStatefulSet()
-	if err != nil {
-		return fmt.Errorf("failed to create or update statefulset: %v", err)
-	}
-
-	err = c.UpdateStatus()
-	if err != nil {
-		return fmt.Errorf("failed to update rethinkdb status: %v", err)
-	}
-
-	return nil
-}
-
-func (c *RethinkDBCluster) CreateOrUpdateStatefulSet() error {
+func (c RethinkDBCluster) CreateOrUpdateStatefulSet() error {
 	name := c.Resource.Name
-	replicas := c.Resource.Spec.Size
-	cluster := name + "-cluster"
-	terminationSeconds := int64(5)
-
-	ss := &apps_v1beta2.StatefulSet{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "apps/v1beta2",
-			Kind:       "StatefulSet",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: c.Resource.ObjectMeta.Namespace,
-			Labels:    c.LabelsForCluster(),
-		},
-	}
+	ss := c.statefulSetForCluster()
 
 	err := query.Get(ss)
 	if err != nil && !apierrors.IsNotFound(err) {
@@ -86,27 +58,9 @@ func (c *RethinkDBCluster) CreateOrUpdateStatefulSet() error {
 
 	if apierrors.IsNotFound(err) {
 		logrus.Infof("creating statefulset: %v", name)
-		ss.Spec = apps_v1beta2.StatefulSetSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: c.LabelsForCluster(),
-			},
-			ServiceName: cluster,
-			Template: v1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: c.LabelsForCluster(),
-				},
-				Spec: v1.PodSpec{
-					Containers:                    c.AddContainers(),
-					InitContainers:                c.AddInitContainers(),
-					TerminationGracePeriodSeconds: &terminationSeconds,
-					Volumes: c.AddVolumes(),
-				},
-			},
-			VolumeClaimTemplates: c.AddPVCs(),
-		}
-
+		ss.Spec = c.statefulSetSpecForCluster()
 		c.AddOwnerRefToObject(ss, c.AsOwner())
+
 		err = action.Create(ss)
 		if err != nil {
 			return fmt.Errorf("failed to create statefulset: %v", err)
@@ -118,9 +72,9 @@ func (c *RethinkDBCluster) CreateOrUpdateStatefulSet() error {
 		}
 	}
 
-	if *ss.Spec.Replicas != replicas {
+	if *ss.Spec.Replicas != c.Resource.Spec.Size {
 		logrus.Infof("updating statefulset: %v", name)
-		ss.Spec.Replicas = &replicas
+		ss.Spec.Replicas = &c.Resource.Spec.Size
 		err = action.Update(ss)
 		if err != nil {
 			return fmt.Errorf("failed to update statefulset: %v", err)
@@ -130,8 +84,9 @@ func (c *RethinkDBCluster) CreateOrUpdateStatefulSet() error {
 	return nil
 }
 
-func (c *RethinkDBCluster) CreateOrUpdateClusterService() error {
+func (c RethinkDBCluster) CreateOrUpdateClusterService() error {
 	name := c.Resource.Name + "-cluster"
+	labels := c.LabelsForCluster()
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -140,7 +95,7 @@ func (c *RethinkDBCluster) CreateOrUpdateClusterService() error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: c.Resource.ObjectMeta.Namespace,
-			Labels:    c.LabelsForCluster(),
+			Labels:    labels,
 		},
 	}
 
@@ -153,7 +108,7 @@ func (c *RethinkDBCluster) CreateOrUpdateClusterService() error {
 		logrus.Infof("creating cluster service: %v", name)
 		svc.Spec = v1.ServiceSpec{
 			ClusterIP: "None",
-			Selector:  c.LabelsForCluster(),
+			Selector:  labels,
 			Ports: []v1.ServicePort{{
 				Port: 29015,
 				Name: "cluster",
@@ -170,7 +125,8 @@ func (c *RethinkDBCluster) CreateOrUpdateClusterService() error {
 	return nil
 }
 
-func (c *RethinkDBCluster) CreateOrUpdateDriverService() error {
+func (c RethinkDBCluster) CreateOrUpdateDriverService() error {
+	labels := c.LabelsForCluster()
 	svc := &v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -179,7 +135,7 @@ func (c *RethinkDBCluster) CreateOrUpdateDriverService() error {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      c.Resource.Name,
 			Namespace: c.Resource.ObjectMeta.Namespace,
-			Labels:    c.LabelsForCluster(),
+			Labels:    labels,
 		},
 	}
 
@@ -191,7 +147,7 @@ func (c *RethinkDBCluster) CreateOrUpdateDriverService() error {
 	if apierrors.IsNotFound(err) {
 		logrus.Infof("creating driver service: %v", c.Resource.Name)
 		svc.Spec = v1.ServiceSpec{
-			Selector:        c.LabelsForCluster(),
+			Selector:        labels,
 			SessionAffinity: "ClientIP",
 			Type:            "NodePort",
 			Ports: []v1.ServicePort{{
@@ -214,14 +170,59 @@ func (c *RethinkDBCluster) CreateOrUpdateDriverService() error {
 	return nil
 }
 
-func (c *RethinkDBCluster) LabelsForCluster() map[string]string {
+func (c RethinkDBCluster) LabelsForCluster() map[string]string {
 	return map[string]string{
 		"app":     "rethinkdb",
 		"cluster": c.Resource.Name,
 	}
 }
 
-func (c *RethinkDBCluster) UpdateStatus() error {
+func (c RethinkDBCluster) SetDefaults() bool {
+	return c.Resource.SetDefaults()
+}
+
+func (c RethinkDBCluster) statefulSetForCluster() *apps_v1beta2.StatefulSet {
+	return &apps_v1beta2.StatefulSet{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1beta2",
+			Kind:       "StatefulSet",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      c.Resource.Name,
+			Namespace: c.Resource.ObjectMeta.Namespace,
+			Labels:    c.LabelsForCluster(),
+		},
+	}
+}
+
+func (c RethinkDBCluster) statefulSetSpecForCluster() apps_v1beta2.StatefulSetSpec {
+	name := c.Resource.Name
+	cluster := name + "-cluster"
+	labels := c.LabelsForCluster()
+	terminationSeconds := int64(5)
+
+	return apps_v1beta2.StatefulSetSpec{
+		Replicas: &c.Resource.Spec.Size,
+		Selector: &metav1.LabelSelector{
+			MatchLabels: labels,
+		},
+		ServiceName: cluster,
+		Template: v1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: labels,
+			},
+			Spec: v1.PodSpec{
+				Containers:                    c.ConstructContainers(),
+				InitContainers:                c.ConstructInitContainers(),
+				TerminationGracePeriodSeconds: &terminationSeconds,
+				Volumes: c.ConstructVolumes(),
+			},
+		},
+		VolumeClaimTemplates: c.ConstructPVCs(),
+	}
+}
+
+func (c RethinkDBCluster) UpdateStatus() error {
 	var podNames []string
 	podList := &v1.PodList{
 		TypeMeta: metav1.TypeMeta{
