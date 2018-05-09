@@ -29,6 +29,7 @@
 package v1alpha1
 
 import (
+	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -55,9 +56,9 @@ type RethinkDB struct {
 }
 
 type RethinkDBSpec struct {
-	// Number of nodes to deploy for a Vault deployment.
+	// Number of nodes to deploy for a RethinkDB deployment.
 	// Default: 1.
-	Nodes int32 `json:"nodes,omitempty"`
+	Size int32 `json:"nodes,omitempty"`
 
 	// Base image to use for a RethinkDB deployment.
 	BaseImage string `json:"baseImage"`
@@ -73,14 +74,36 @@ type RethinkDBSpec struct {
 
 	// Name of Secret to use or create.
 	SecretName string `json:"secretName"`
+
+	// Pod defines the policy for pods owned by rethinkdb operator.
+	// This field cannot be updated once the CR is created.
+	Pod *PodPolicy `json:"pod,omitempty"`
+}
+
+type RethinkDBStatus struct {
+	// StatefulSet is the name of the rethinkdb StatefulSet
+	StatefulSet string `json:"nodes"`
+
+	// Pods are the names of the rethinkdb pods
+	Pods []string `json:"nodes"`
+}
+
+// PodPolicy defines the policy for pods owned by rethinkdb operator.
+type PodPolicy struct {
+	// Resources is the resource requirements for the containers.
+	Resources v1.ResourceRequirements `json:"resources,omitempty"`
+
+	// PersistentVolumeClaimSpec is the spec to describe PVC for the rethinkdb container
+	// This field is optional. If no PVC spec, rethinkdb container will use emptyDir as volume
+	PersistentVolumeClaimSpec *v1.PersistentVolumeClaimSpec `json:"persistentVolumeClaimSpec,omitempty"`
 }
 
 // SetDefaults sets the default vaules for the cuberite spec and returns true if the spec was changed
 func (r *RethinkDB) SetDefaults() bool {
 	changed := false
 	rs := &r.Spec
-	if rs.Nodes == 0 {
-		rs.Nodes = 1
+	if rs.Size == 0 {
+		rs.Size = 1
 		changed = true
 	}
 	if len(rs.BaseImage) == 0 {
@@ -102,6 +125,9 @@ func (r *RethinkDB) SetDefaults() bool {
 	return changed
 }
 
-type RethinkDBStatus struct {
-	// Fills me
+func (r *RethinkDB) IsPVEnabled() bool {
+	if podPolicy := r.Spec.Pod; podPolicy != nil {
+		return podPolicy.PersistentVolumeClaimSpec != nil
+	}
+	return false
 }

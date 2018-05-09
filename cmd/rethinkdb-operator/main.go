@@ -21,8 +21,8 @@ import (
 
 	operator "github.com/jmckind/rethinkdb-operator/pkg/stub"
 	operatorVersion "github.com/jmckind/rethinkdb-operator/version"
-	sdk "github.com/coreos/operator-sdk/pkg/sdk"
-	sdkVersion "github.com/coreos/operator-sdk/version"
+	sdk "github.com/operator-framework/operator-sdk/pkg/sdk"
+	sdkVersion "github.com/operator-framework/operator-sdk/version"
 
 	"github.com/jmckind/rethinkdb-operator/pkg/util/probe"
 	"github.com/sirupsen/logrus"
@@ -48,7 +48,7 @@ func startReadyz() {
 }
 
 func run() {
-	sdk.Watch("operator.rethinkdb.com/v1alpha1", "RethinkDB", "default")
+	sdk.Watch("operator.rethinkdb.com/v1alpha1", "RethinkDB", "default", 5)
 	sdk.Handle(operator.NewRethinkDBHandler())
- 	sdk.Run(context.TODO())
+	sdk.Run(context.TODO())
 }

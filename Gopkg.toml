@@ -2,7 +2,7 @@
   name = "k8s.io/api"
   version = "kubernetes-1.9.3"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/apiextensions-apiserver"
   version = "kubernetes-1.9.3"
 
@@ -15,7 +15,7 @@
   version = "kubernetes-1.9.3"
 
 [[constraint]]
-  name = "github.com/coreos/operator-sdk"
+  name = "github.com/operator-framework/operator-sdk"
   # The version rule is used for a specific release and the master branch for in between releases.
   # branch = "master"
-  version = "=v0.0.1"
+  version = "=v0.0.5"
