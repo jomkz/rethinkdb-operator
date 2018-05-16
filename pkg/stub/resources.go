@@ -21,6 +21,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	defaultConfig = `bind=all
+directory=/var/lib/rethinkdb/default
+# driver-tls-cert=/etc/rethinkdb/driver-tls-cert.pem
+# driver-tls-key=/etc/rethinkdb/driver-tls-key.pem
+# http-tls-key=/etc/rethinkdb/http-tls-key.pem
+# http-tls-cert=/etc/rethinkdb/http-tls-cert.pem
+`
+)
+
 func (c *RethinkDBCluster) AddOwnerRefToObject(obj metav1.Object, ownerRef metav1.OwnerReference) {
 	obj.SetOwnerReferences(append(obj.GetOwnerReferences(), ownerRef))
 }
@@ -36,6 +46,16 @@ func (c *RethinkDBCluster) AsOwner() metav1.OwnerReference {
 		UID:        r.UID,
 		Controller: &controller,
 	}
+}
+
+func (c *RethinkDBCluster) ConstructConfiguration() string {
+	config := defaultConfig
+
+	if !c.Resource.Spec.WebAdminEnabled {
+		config += "no-http-admin\n"
+	}
+
+	return config
 }
 
 func (c *RethinkDBCluster) ConstructContainers() []v1.Container {
@@ -82,6 +102,17 @@ func (c *RethinkDBCluster) ConstructContainerResources() v1.ResourceRequirements
 	return resources
 }
 
+func (c *RethinkDBCluster) ConstructDriverServicePorts() []v1.ServicePort {
+	var ports []v1.ServicePort
+
+	ports = append(ports, v1.ServicePort{Port: 28015, Name: "driver"})
+	if c.Resource.Spec.WebAdminEnabled {
+		ports = append(ports, v1.ServicePort{Port: 8080, Name: "http"})
+	}
+
+	return ports
+}
+
 func (c *RethinkDBCluster) ConstructEmptyDirVolume(name string) v1.Volume {
 	return v1.Volume{
 		Name: name,
@@ -94,12 +125,13 @@ func (c *RethinkDBCluster) ConstructEmptyDirVolume(name string) v1.Volume {
 func (c *RethinkDBCluster) ConstructInitContainers() []v1.Container {
 	name := c.Resource.Name
 	cluster := name + "-cluster"
+	config := c.ConstructConfiguration()
 
 	return []v1.Container{{
 		Command: []string{
 			"/bin/sh",
 			"-c",
-			fmt.Sprintf("echo '%s' > /etc/rethinkdb/rethinkdb.conf; if nslookup %s; then echo join=%s-0.%s:29015 >> /etc/rethinkdb/rethinkdb.conf; fi;", defaultConfig, cluster, name, cluster),
+			fmt.Sprintf("echo '%s' > /etc/rethinkdb/rethinkdb.conf; if nslookup %s; then echo join=%s-0.%s:29015 >> /etc/rethinkdb/rethinkdb.conf; fi;", config, cluster, name, cluster),
 		},
 		Image: "busybox:latest",
 		Name:  "cluster-init",

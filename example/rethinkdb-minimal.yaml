@@ -7,4 +7,4 @@ metadata:
     app: rethinkdb
     cluster: rethinkdb-minimal-example
 spec:
-  withService: true
+  webAdminEnabled: false

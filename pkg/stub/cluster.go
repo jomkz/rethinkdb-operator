@@ -74,6 +74,10 @@ func (c RethinkDBCluster) CreateOrUpdateStatefulSet() error {
 
 	if *ss.Spec.Replicas != c.Resource.Spec.Size {
 		logrus.Infof("updating statefulset: %v", name)
+
+		// now := time.Now().UTC().Format(time.UnixDate)
+		// ss.Spec.Template.ObjectMeta.Annotations = map[string]string{"LastUpdated": now}
+
 		ss.Spec.Replicas = &c.Resource.Spec.Size
 		err = action.Update(ss)
 		if err != nil {
@@ -150,14 +154,7 @@ func (c RethinkDBCluster) CreateOrUpdateDriverService() error {
 			Selector:        labels,
 			SessionAffinity: "ClientIP",
 			Type:            "NodePort",
-			Ports: []v1.ServicePort{{
-				Port: 8080,
-				Name: "http",
-			},
-				{
-					Port: 28015,
-					Name: "driver",
-				}},
+			Ports:           c.ConstructDriverServicePorts(),
 		}
 
 		c.AddOwnerRefToObject(svc, c.AsOwner())

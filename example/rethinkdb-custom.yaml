@@ -8,7 +8,7 @@ metadata:
     cluster: rethinkdb-custom-example
 spec:
   nodes: 3
-  withService: true
+  webAdminEnabled: true
   pod:
     resources:
       limits:

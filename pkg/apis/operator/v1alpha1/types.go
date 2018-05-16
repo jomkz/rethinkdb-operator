@@ -35,7 +35,7 @@ import (
 
 const (
 	defaultBaseImage = "jmckind/rethinkdb"
-	defaultVersion = "latest"
+	defaultVersion   = "latest"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -66,8 +66,8 @@ type RethinkDBSpec struct {
 	// Version of RethinkDB to be deployed.
 	Version string `json:"version"`
 
-	// Flag to indicate whether or not a Service will be created for the deployment.
-	WithService bool `json:"withService"`
+	// Flag to indicate whether or not the Web Admin will be enabled for the cluster.
+	WebAdminEnabled bool `json:"webAdminEnabled"`
 
 	// Name of ConfigMap to use or create.
 	ConfigMapName string `json:"configMapName"`
@@ -82,7 +82,7 @@ type RethinkDBSpec struct {
 
 type RethinkDBStatus struct {
 	// StatefulSet is the name of the rethinkdb StatefulSet
-	StatefulSet string `json:"nodes"`
+	StatefulSet string `json:"cluster"`
 
 	// Pods are the names of the rethinkdb pods
 	Pods []string `json:"nodes"`

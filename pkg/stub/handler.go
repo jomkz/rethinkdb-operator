@@ -22,12 +22,6 @@ import (
 	"github.com/operator-framework/operator-sdk/pkg/sdk/types"
 )
 
-const (
-	defaultConfig = `bind=all
-directory=/var/lib/rethinkdb/default
-`
-)
-
 type RethinkDBHandler struct {
 	handler.Handler
 }
