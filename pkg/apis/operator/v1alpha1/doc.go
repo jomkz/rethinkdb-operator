@@ -1,6 +1,3 @@
-// +k8s:deepcopy-gen=package
-// +groupName=operator.rethinkdb.com
-
 // Copyright 2018 The rethinkdb-operator Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,4 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package v1alpha1 contains API Schema definitions for the operator v1alpha1 API group
+// +k8s:deepcopy-gen=package,register
+// +groupName=operator.rethinkdb.com
 package v1alpha1

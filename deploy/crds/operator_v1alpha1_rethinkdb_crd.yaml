@@ -9,5 +9,7 @@ spec:
     listKind: RethinkDBList
     plural: rethinkdbs
     singular: rethinkdb
+    shortNames:
+      - rdb
   scope: Namespaced
   version: v1alpha1

@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-set -o errexit
-set -o nounset
-set -o pipefail
-
-go tool cover -html=tmp/_output/coverage.out

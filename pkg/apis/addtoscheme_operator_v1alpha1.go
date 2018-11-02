@@ -12,20 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package v1alpha1 contains API Schema definitions for the operator v1alpha1 API group
-// +k8s:deepcopy-gen=package,register
-// +groupName=operator.rethinkdb.com
-package v1alpha1
+package apis
 
 import (
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"sigs.k8s.io/controller-runtime/pkg/runtime/scheme"
+	"github.com/jmckind/rethinkdb-operator/pkg/apis/operator/v1alpha1"
 )
 
-var (
-	// SchemeGroupVersion is group version used to register these objects
-	SchemeGroupVersion = schema.GroupVersion{Group: "operator.rethinkdb.com", Version: "v1alpha1"}
-
-	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
-	SchemeBuilder = &scheme.Builder{GroupVersion: SchemeGroupVersion}
-)
+func init() {
+	// Register the types with the Scheme so the components can map objects to GroupVersionKinds and back
+	AddToSchemes = append(AddToSchemes, v1alpha1.SchemeBuilder.AddToScheme)
+}

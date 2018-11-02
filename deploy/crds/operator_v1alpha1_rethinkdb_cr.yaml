@@ -1,0 +1,7 @@
+apiVersion: operator.rethinkdb.com/v1alpha1
+kind: RethinkDB
+metadata:
+  name: example-rethinkdb
+spec:
+  size: 3
+  webAdminEnabled: true

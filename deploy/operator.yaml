@@ -12,10 +12,24 @@ spec:
       labels:
         name: rethinkdb-operator
     spec:
+      serviceAccountName: rethinkdb-operator
       containers:
         - name: rethinkdb-operator
-          image: jmckind/rethinkdb-operator:0.0.3
+          image: quay.io/john_mckenzie/rethinkdb-operator:latest
+          ports:
+          - containerPort: 60000
+            name: metrics
           command:
           - rethinkdb-operator
           imagePullPolicy: Always
-          tty: true
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "rethinkdb-operator"
