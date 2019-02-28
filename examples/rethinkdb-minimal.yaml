@@ -1,0 +1,4 @@
+apiVersion: rethinkdb.com/v1alpha1
+kind: RethinkDBCluster
+metadata:
+  name: rethinkdb-minimal-example

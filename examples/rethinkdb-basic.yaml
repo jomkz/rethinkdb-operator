@@ -1,0 +1,9 @@
+apiVersion: rethinkdb.com/v1alpha1
+kind: RethinkDBCluster
+metadata:
+  name: rethinkdb-basic-example
+  labels:
+    tier: backend
+spec:
+  size: 3
+  webAdminEnabled: true
