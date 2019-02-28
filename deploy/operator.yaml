@@ -15,8 +15,7 @@ spec:
       serviceAccountName: rethinkdb-operator
       containers:
         - name: rethinkdb-operator
-          # Replace this with the built image name
-          image: REPLACE_IMAGE
+          image: jmckind/rethinkdb-operator:latest
           command:
           - rethinkdb-operator
           imagePullPolicy: Always

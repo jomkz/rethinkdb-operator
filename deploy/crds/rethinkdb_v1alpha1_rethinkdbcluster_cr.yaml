@@ -1,0 +1,6 @@
+apiVersion: rethinkdb.com/v1alpha1
+kind: RethinkDBCluster
+metadata:
+  name: example-rethinkdbcluster
+spec:
+  size: 3
