@@ -171,6 +171,13 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 		return reconcile.Result{}, err
 	}
 
+	// Reconcile the cluster admin secret
+	err = r.reconcileAdminSecret(cluster)
+	if err != nil {
+		reqLogger.Error(err, "unable to reconcile admin secret")
+		return reconcile.Result{}, err
+	}
+
 	// Reconcile the cluster server pods
 	err = r.reconcileServerPods(cluster)
 	if err != nil {
@@ -180,6 +187,31 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 
 	// No errors, return and don't requeue
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileRethinkDBCluster) reconcileAdminSecret(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
+	name := fmt.Sprintf("%s-admin", cr.ObjectMeta.Name)
+	found := &corev1.Secret{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		log.Info("creating new secret", "secret", name)
+		secret, err := newUserSecret(cr, "admin")
+		if err != nil {
+			return err
+		}
+
+		// Set RethinkDBCluster instance as the owner and controller
+		if err = controllerutil.SetControllerReference(cr, secret, r.scheme); err != nil {
+			return err
+		}
+
+		// Create the Secret and return
+		return r.client.Create(context.TODO(), secret)
+	} else if err != nil {
+		return err
+	}
+	log.Info("secret exists", "secret", found.Name)
+	return nil
 }
 
 // reconcileCAConfigMap ensures the cluster CA certificate ConfigMap is present, based on the given CA Secret.

@@ -21,8 +21,17 @@ import (
 
 	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 	tlsutil "github.com/operator-framework/operator-sdk/pkg/tls"
+	"github.com/sethvargo/go-password/password"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	// PasswordKey is the key for the password field.
+	PasswordKey = "password"
+
+	// UsernameKey is the key for the username field.
+	UsernameKey = "username"
 )
 
 // newCASecret creates a new CA secret for the given RethinkDBCluster.
@@ -95,4 +104,19 @@ func newTLSSecret(cr *v1alpha1.RethinkDBCluster, name string) *corev1.Secret {
 	secret.ObjectMeta.Name = name
 	secret.Type = corev1.SecretTypeTLS
 	return secret
+}
+
+// newUserSecret creates a new Opaque secret for the given username and RethinkDBCluster.
+func newUserSecret(cr *v1alpha1.RethinkDBCluster, username string) (*corev1.Secret, error) {
+	psswd, err := password.Generate(16, 4, 4, false, false)
+	if err != nil {
+		return nil, err
+	}
+	secret := newSecret(cr)
+	secret.ObjectMeta.Name = fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, username)
+	secret.Data = map[string][]byte{
+		UsernameKey: []byte(username),
+		PasswordKey: []byte(psswd),
+	}
+	return secret, nil
 }

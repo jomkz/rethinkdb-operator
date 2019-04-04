@@ -410,6 +410,14 @@
   version = "v1.2.2"
 
 [[projects]]
+  digest = "1:1af58d182e3b1008d25d7ba65ff7c2631a246023d3b814f9ba8c7919aded59f3"
+  name = "github.com/sethvargo/go-password"
+  packages = ["password"]
+  pruneopts = "NT"
+  revision = "bc15c697eeda69a082991d2f1ed37660658fea32"
+  version = "v0.1.2"
+
+[[projects]]
   digest = "1:1bc08ec221c4fb25e6f2c019b23fe989fb44573c696983d8e403a3b76cc378e1"
   name = "github.com/spf13/afero"
   packages = [
@@ -915,6 +923,7 @@
     "github.com/operator-framework/operator-sdk/pkg/metrics",
     "github.com/operator-framework/operator-sdk/pkg/tls",
     "github.com/operator-framework/operator-sdk/version",
+    "github.com/sethvargo/go-password/password",
     "github.com/spf13/pflag",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
