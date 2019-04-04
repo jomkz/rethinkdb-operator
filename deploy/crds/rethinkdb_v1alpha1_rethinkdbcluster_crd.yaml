@@ -40,8 +40,6 @@ spec:
               type: boolean
           required:
           - size
-          - version
-          - webAdminEnabled
           type: object
         status:
           properties:
@@ -51,9 +49,6 @@ spec:
               type: array
             serviceName:
               type: string
-          required:
-          - servers
-          - serviceName
           type: object
   version: v1alpha1
   versions:
