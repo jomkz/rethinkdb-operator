@@ -23,16 +23,19 @@ import (
 )
 
 const (
-	baseImage     = "jmckind/rethinkdb"
-	defaultConfig = `no-update-check
+	baseImage      = "jmckind/rethinkdb"
+	defaultVersion = "latest"
+	defaultConfig  = `no-update-check
 bind=all
 directory=/var/lib/rethinkdb/default
-# driver-tls-cert=/etc/rethinkdb/driver-tls-cert.pem
-# driver-tls-key=/etc/rethinkdb/driver-tls-key.pem
-# http-tls-key=/etc/rethinkdb/http-tls-key.pem
-# http-tls-cert=/etc/rethinkdb/http-tls-cert.pem
+cluster-tls-ca=/etc/rethinkdb/tls/ca/tls.crt
+cluster-tls-cert=/etc/rethinkdb/tls/cluster/tls.crt
+cluster-tls-key=/etc/rethinkdb/tls/cluster/tls.key
+driver-tls-cert=/etc/rethinkdb/tls/driver/tls.crt
+driver-tls-key=/etc/rethinkdb/tls/driver/tls.key
+http-tls-cert=/etc/rethinkdb/tls/http/tls.crt
+http-tls-key=/etc/rethinkdb/tls/http/tls.key
 `
-	defaultVersion = "latest"
 )
 
 // generateConfiguration will return the text for the RethinkDB configuration file.
@@ -79,6 +82,22 @@ func newContainers(cr *v1alpha1.RethinkDBCluster) []corev1.Container {
 			{
 				Name:      "rethinkdb-etc",
 				MountPath: "/etc/rethinkdb",
+			},
+			{
+				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "ca"),
+				MountPath: "/etc/rethinkdb/tls/ca",
+			},
+			{
+				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "cluster"),
+				MountPath: "/etc/rethinkdb/tls/cluster",
+			},
+			{
+				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "driver"),
+				MountPath: "/etc/rethinkdb/tls/driver",
+			},
+			{
+				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "http"),
+				MountPath: "/etc/rethinkdb/tls/http",
 			}},
 	}}
 }
