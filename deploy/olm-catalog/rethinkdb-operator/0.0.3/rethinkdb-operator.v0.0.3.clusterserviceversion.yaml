@@ -1,0 +1,106 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    capabilities: Basic Install
+  name: rethinkdb-operator.v0.0.3
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - kind: RethinkDBCluster
+      name: rethinkdbclusters.rethinkdb.com
+      version: v1alpha1
+  description: Placeholder description
+  displayName: Rethinkdb Operator
+  install:
+    spec:
+      deployments:
+      - name: rethinkdb-operator
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              name: rethinkdb-operator
+          strategy: {}
+          template:
+            metadata:
+              labels:
+                name: rethinkdb-operator
+            spec:
+              containers:
+              - command:
+                - rethinkdb-operator
+                env:
+                - name: WATCH_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: OPERATOR_NAME
+                  value: rethinkdb-operator
+                image: jmckind/rethinkdb-operator:latest
+                imagePullPolicy: Always
+                name: rethinkdb-operator
+                resources: {}
+              serviceAccountName: rethinkdb-operator
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - pods
+          - services
+          - endpoints
+          - persistentvolumeclaims
+          - events
+          - configmaps
+          - secrets
+          verbs:
+          - '*'
+        - apiGroups:
+          - ""
+          resources:
+          - namespaces
+          verbs:
+          - get
+        - apiGroups:
+          - apps
+          resources:
+          - deployments
+          - daemonsets
+          - replicasets
+          - statefulsets
+          verbs:
+          - '*'
+        - apiGroups:
+          - monitoring.coreos.com
+          resources:
+          - servicemonitors
+          verbs:
+          - get
+          - create
+        - apiGroups:
+          - rethinkdb.com
+          resources:
+          - '*'
+          verbs:
+          - '*'
+        serviceAccountName: rethinkdb-operator
+    strategy: deployment
+  installModes:
+  - supported: true
+    type: OwnNamespace
+  - supported: true
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  maturity: alpha
+  provider: {}
+  version: 0.0.3
