@@ -15,6 +15,8 @@
 package rethinkdbcluster
 
 import (
+	"fmt"
+
 	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +36,19 @@ func newEmptyDirVolume(name string) corev1.Volume {
 		Name: name,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	}
+}
+
+// newTLSSecretVolume creates a new volume for a TLS Secret with the given name.
+func newTLSSecretVolume(name string) corev1.Volume {
+	return corev1.Volume{
+		Name: name,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: name,
+				//DefaultMode: int32(600),
+			},
 		},
 	}
 }
@@ -61,6 +76,10 @@ func newVolumes(cr *v1alpha1.RethinkDBCluster) []corev1.Volume {
 	var volumes []corev1.Volume
 
 	volumes = append(volumes, newEmptyDirVolume("rethinkdb-etc"))
+	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-ca", cr.ObjectMeta.Name)))
+	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-cluster", cr.ObjectMeta.Name)))
+	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-driver", cr.ObjectMeta.Name)))
+	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-http", cr.ObjectMeta.Name)))
 
 	if !isPVEnabled(cr) {
 		volumes = append(volumes, newEmptyDirVolume("rethinkdb-data"))
