@@ -97,7 +97,7 @@ func schema_pkg_apis_rethinkdb_v1alpha1_RethinkDBClusterSpec(ref common.Referenc
 						},
 					},
 				},
-				Required: []string{"size", "version", "webAdminEnabled"},
+				Required: []string{"size"},
 			},
 		},
 		Dependencies: []string{
@@ -133,7 +133,6 @@ func schema_pkg_apis_rethinkdb_v1alpha1_RethinkDBClusterStatus(ref common.Refere
 						},
 					},
 				},
-				Required: []string{"servers", "serviceName"},
 			},
 		},
 		Dependencies: []string{},
