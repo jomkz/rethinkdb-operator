@@ -40,13 +40,13 @@ func labelsForCluster(cr *v1alpha1.RethinkDBCluster) map[string]string {
 // setDefaults sets the default vaules for the spec and returns true if the spec was changed.
 func setDefaults(cr *v1alpha1.RethinkDBCluster) bool {
 	changed := false
-	rs := &cr.Spec
-	if rs.Size <= 0 {
-		rs.Size = 1
+	spec := &cr.Spec
+	if spec.Size <= 0 {
+		spec.Size = 1
 		changed = true
 	}
-	if strings.TrimSpace(rs.Version) == "" {
-		rs.Version = defaultVersion
+	if strings.TrimSpace(spec.Version) == "" {
+		spec.Version = defaultVersion
 		changed = true
 	}
 	return changed
