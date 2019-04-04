@@ -148,8 +148,13 @@ kubectl create -f example/rethinkdb-minimal.yaml
 
 Keep in mind that when you make changes to the code, you must restart the operator. Use `Ctrl+c` to kill the process and restart.
 
+## Changelog
+
+See the [Changelog][changelog_file] for the detail on what changed with each release.
+
 ## License
 
 RethinkDB Operator is released under the Apache 2.0 license. See the [LICENSE][license_file] file for details.
 
+[changelog_file]:./CHANGELOG.md
 [license_file]:./LICENSE
