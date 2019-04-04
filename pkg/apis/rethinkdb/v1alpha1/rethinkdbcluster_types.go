@@ -39,10 +39,10 @@ type RethinkDBClusterSpec struct {
 	Size int32 `json:"size"`
 
 	// Version is the RethinkDB version to use for the cluster.
-	Version string `json:"version"`
+	Version string `json:"version,omitempty"`
 
 	// WebAdminEnabled indicates whether or not the Web Admin will be enabled for the cluster.
-	WebAdminEnabled bool `json:"webAdminEnabled"`
+	WebAdminEnabled bool `json:"webAdminEnabled,omitempty"`
 
 	// Pod defines the policy for pods owned by rethinkdb operator.
 	// This field cannot be updated once the CR is created.
@@ -53,10 +53,10 @@ type RethinkDBClusterSpec struct {
 // +k8s:openapi-gen=true
 type RethinkDBClusterStatus struct {
 	// Servers is a list of the names of the rethinkdb server Pods in the cluster.
-	Servers []string `json:"servers"`
+	Servers []string `json:"servers,omitempty"`
 
 	// ServiceName is the name of the Service for accessing the RethinkDB cluster.
-	ServiceName string `json:"serviceName"`
+	ServiceName string `json:"serviceName,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
