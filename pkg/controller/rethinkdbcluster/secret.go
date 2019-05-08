@@ -72,7 +72,11 @@ func newCertificateSecret(cr *v1alpha1.RethinkDBCluster, name string, caCert *x5
 		Organization: []string{cr.ObjectMeta.Namespace},
 	}
 
-	dnsNames := []string{fmt.Sprintf("%s.%s.svc.cluster.local", cr.ObjectMeta.Name, cr.ObjectMeta.Namespace)}
+	dnsNames := []string{
+		cr.ObjectMeta.Name,
+		fmt.Sprintf("%s.%s.svc.cluster.local", cr.ObjectMeta.Name, cr.ObjectMeta.Namespace),
+	}
+
 	cert, err := newSignedCertificate(cfg, dnsNames, key, caCert, caKey)
 	if err != nil {
 		return nil, err
@@ -108,7 +112,7 @@ func newTLSSecret(cr *v1alpha1.RethinkDBCluster, name string) *corev1.Secret {
 
 // newUserSecret creates a new Opaque secret for the given username and RethinkDBCluster.
 func newUserSecret(cr *v1alpha1.RethinkDBCluster, username string) (*corev1.Secret, error) {
-	psswd, err := password.Generate(16, 4, 4, false, false)
+	psswd, err := password.Generate(16, 4, 0, false, false)
 	if err != nil {
 		return nil, err
 	}
