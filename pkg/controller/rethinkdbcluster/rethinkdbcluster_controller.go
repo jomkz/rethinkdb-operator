@@ -157,15 +157,22 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 		return reconcile.Result{}, err
 	}
 
-	// Reconcile the cluster service
-	svc, err := r.reconcileService(cluster)
+	// Reconcile the admin service
+	err = r.reconcileAdminService(cluster)
 	if err != nil {
-		reqLogger.Error(err, "unable to reconcile service")
+		reqLogger.Error(err, "unable to reconcile admin service")
+		return reconcile.Result{}, err
+	}
+
+	// Reconcile the driver service
+	err = r.reconcileDriverService(cluster)
+	if err != nil {
+		reqLogger.Error(err, "unable to reconcile driver service")
 		return reconcile.Result{}, err
 	}
 
 	// Reconcile the cluster TLS secrets
-	err = r.reconcileTLSSecrets(cluster, svc, caSecret)
+	err = r.reconcileTLSSecrets(cluster, caSecret)
 	if err != nil {
 		reqLogger.Error(err, "unable to reconcile tls secrets")
 		return reconcile.Result{}, err
@@ -189,13 +196,14 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 	return reconcile.Result{}, nil
 }
 
+// reconcileAdminSecret ensures the cluster admin user credentials are present.
 func (r *ReconcileRethinkDBCluster) reconcileAdminSecret(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
-	name := fmt.Sprintf("%s-admin", cr.ObjectMeta.Name)
+	name := fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, RethinkDBAdminKey)
 	found := &corev1.Secret{}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
 		log.Info("creating new secret", "secret", name)
-		secret, err := newUserSecret(cr, "admin")
+		secret, err := newUserSecret(cr, RethinkDBAdminKey)
 		if err != nil {
 			return err
 		}
@@ -275,27 +283,125 @@ func (r *ReconcileRethinkDBCluster) reconcileCASecret(cr *rethinkdbv1alpha1.Reth
 	return found, nil
 }
 
+// reconcileServers ensures the requested number of server Pods are created.
+func (r *ReconcileRethinkDBCluster) reconcileServerPods(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
+	servers, err := r.listServers(cr)
+	if err != nil {
+		log.Error(err, "unable to list servers")
+		return err
+	}
+	serverCount := int32(len(servers))
+
+	if serverCount < cr.Spec.Size {
+		// Ensure all existing Pods are running before adding a new Pod.
+		for _, pod := range servers {
+			if pod.Status.Phase != corev1.PodRunning {
+				log.Info("waiting for existing server pods to become ready...")
+				return nil
+			}
+		}
+		return r.addServer(cr, servers)
+	} else if serverCount > cr.Spec.Size {
+		return r.removeServer(cr, servers)
+	}
+
+	log.Info("correct cluster size reached", "size", serverCount)
+	return nil
+}
+
+// reconcileAdminService ensures the admin Service is created.
+func (r *ReconcileRethinkDBCluster) reconcileAdminService(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
+	found := &corev1.Service{}
+	name := fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, RethinkDBAdminKey)
+
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		if !cr.Spec.WebAdminEnabled {
+			// Admin not enabled, do not create service
+			return nil
+		}
+
+		log.Info("creating new service", "service", name)
+		svc := newAdminService(cr)
+
+		// Set RethinkDBCluster instance as the owner and controller
+		if err = controllerutil.SetControllerReference(cr, svc, r.scheme); err != nil {
+			return err
+		}
+
+		// Create the Service and return
+		return r.client.Create(context.TODO(), svc)
+	} else if err != nil {
+		return err
+	}
+
+	// Service exists, verify that it should...
+	if !cr.Spec.WebAdminEnabled {
+		log.Info("removing existing service", "service", name)
+		return r.client.Delete(context.TODO(), found)
+	}
+
+	log.Info("service exists", "service", found.Name)
+	return nil
+}
+
+// reconcileDriverService ensures the driver Service is present.
+func (r *ReconcileRethinkDBCluster) reconcileDriverService(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
+	found := &corev1.Service{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		log.Info("creating new service", "service", cr.Name)
+		svc := newDriverService(cr)
+
+		// Set RethinkDBCluster instance as the owner and controller
+		if err = controllerutil.SetControllerReference(cr, svc, r.scheme); err != nil {
+			return err
+		}
+
+		// Create the Service
+		err = r.client.Create(context.TODO(), svc)
+		if err != nil {
+			return err
+		}
+
+		// Service created successfully, update status and return
+		cr.Status.ServiceName = svc.Name
+		return r.client.Status().Update(context.TODO(), cr)
+	} else if err != nil {
+		return err
+	}
+
+	log.Info("service exists", "service", found.Name)
+	return nil
+}
+
 // reconcileCertificates ensures the TLS secrets are created for the given RethinkDBCluster.
-func (r *ReconcileRethinkDBCluster) reconcileTLSSecrets(cr *rethinkdbv1alpha1.RethinkDBCluster, svc *corev1.Service, caSecret *corev1.Secret) error {
+func (r *ReconcileRethinkDBCluster) reconcileTLSSecrets(cr *rethinkdbv1alpha1.RethinkDBCluster, caSecret *corev1.Secret) error {
 	// Reconcile the cluster certificate Secret
-	err := r.reconcileTLSSecretWithSuffix(cr, svc, caSecret, "cluster")
+	err := r.reconcileTLSSecretWithSuffix(cr, caSecret, RethinkDBClusterKey)
 	if err != nil {
 		return err
 	}
 
 	// Reconcile the driver certificate Secret
-	err = r.reconcileTLSSecretWithSuffix(cr, svc, caSecret, "driver")
+	err = r.reconcileTLSSecretWithSuffix(cr, caSecret, RethinkDBDriverKey)
 	if err != nil {
 		return err
 	}
 
 	// Reconcile the http (web-admin) certificate Secret
-	err = r.reconcileTLSSecretWithSuffix(cr, svc, caSecret, "http")
+	err = r.reconcileTLSSecretWithSuffix(cr, caSecret, RethinkDBHttpKey)
+	if err != nil {
+		return err
+	}
+
+	// Reconcile the client certificate Secret
+	err = r.reconcileTLSSecretWithSuffix(cr, caSecret, RethinkDBClientKey)
 	return err
 }
 
 // reconcileTLSSecretWithSuffix ensures the TLS Secret is created for the given Service with the given suffix.
-func (r *ReconcileRethinkDBCluster) reconcileTLSSecretWithSuffix(cr *rethinkdbv1alpha1.RethinkDBCluster, svc *corev1.Service, caSecret *corev1.Secret, suffix string) error {
+func (r *ReconcileRethinkDBCluster) reconcileTLSSecretWithSuffix(cr *rethinkdbv1alpha1.RethinkDBCluster, caSecret *corev1.Secret, suffix string) error {
 	found := &corev1.Secret{}
 	name := fmt.Sprintf("%s-%s", cr.Name, suffix)
 
@@ -323,12 +429,7 @@ func (r *ReconcileRethinkDBCluster) reconcileTLSSecretWithSuffix(cr *rethinkdbv1
 			return err
 		}
 
-		err = r.client.Create(context.TODO(), secret)
-		if err != nil {
-			return err
-		}
-
-		return nil
+		return r.client.Create(context.TODO(), secret)
 	} else if err != nil {
 		return err
 	}
@@ -337,63 +438,21 @@ func (r *ReconcileRethinkDBCluster) reconcileTLSSecretWithSuffix(cr *rethinkdbv1
 	return nil
 }
 
-// reconcileServers ensures the requested number of server Pods are created.
-func (r *ReconcileRethinkDBCluster) reconcileServerPods(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
-	members, err := r.listMembers(cr)
+// listServers will return a slice containing the server Pods in the cluster.
+func (r *ReconcileRethinkDBCluster) listServers(cr *rethinkdbv1alpha1.RethinkDBCluster) ([]corev1.Pod, error) {
+	found := &corev1.PodList{}
+	labelSelector := labels.SelectorFromSet(labelsForCluster(cr))
+	listOps := &client.ListOptions{Namespace: cr.Namespace, LabelSelector: labelSelector}
+	err := r.client.List(context.TODO(), listOps, found)
 	if err != nil {
-		return err
-	}
-	memberCount := int32(len(members))
-
-	if memberCount < cr.Spec.Size {
-		// Ensure all existing Pods are running before adding a new Pod.
-		for _, pod := range members {
-			if pod.Status.Phase != corev1.PodRunning {
-				log.Info("waiting for existing server pods to become ready...")
-				return nil
-			}
-		}
-		return r.addMember(cr, members)
-	} else if memberCount > cr.Spec.Size {
-		return r.removeMember(cr, members)
-	}
-
-	log.Info("correct cluster size reached", "size", memberCount)
-	return nil
-}
-
-// reconcileService ensures the Service is created.
-func (r *ReconcileRethinkDBCluster) reconcileService(cr *rethinkdbv1alpha1.RethinkDBCluster) (*corev1.Service, error) {
-	found := &corev1.Service{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		log.Info("creating new service", "service", cr.Name)
-		svc := newService(cr)
-
-		// Set RethinkDBCluster instance as the owner and controller
-		if err = controllerutil.SetControllerReference(cr, svc, r.scheme); err != nil {
-			return nil, err
-		}
-
-		// Create the Service
-		err = r.client.Create(context.TODO(), svc)
-		if err != nil {
-			return nil, err
-		}
-
-		// Service created successfully, update status and return
-		cr.Status.ServiceName = svc.Name
-		return svc, r.client.Status().Update(context.TODO(), cr)
-	} else if err != nil {
+		log.Error(err, "failed to list server pods")
 		return nil, err
 	}
-
-	log.Info("service exists", "service", found.Name)
-	return found, nil
+	return found.Items, nil
 }
 
-// addMember will add a new Pod to the cluster.
-func (r *ReconcileRethinkDBCluster) addMember(cr *rethinkdbv1alpha1.RethinkDBCluster, members []corev1.Pod) error {
+// addServer will add a new Pod to the cluster.
+func (r *ReconcileRethinkDBCluster) addServer(cr *rethinkdbv1alpha1.RethinkDBCluster, members []corev1.Pod) error {
 	log.Info("creating new server pod")
 	pod := newPod(cr, members)
 
@@ -412,26 +471,13 @@ func (r *ReconcileRethinkDBCluster) addMember(cr *rethinkdbv1alpha1.RethinkDBClu
 	return r.client.Status().Update(context.TODO(), cr)
 }
 
-// listMembers will return a slice containing the server Pods in the cluster.
-func (r *ReconcileRethinkDBCluster) listMembers(cr *rethinkdbv1alpha1.RethinkDBCluster) ([]corev1.Pod, error) {
-	found := &corev1.PodList{}
-	labelSelector := labels.SelectorFromSet(labelsForCluster(cr))
-	listOps := &client.ListOptions{Namespace: cr.Namespace, LabelSelector: labelSelector}
-	err := r.client.List(context.TODO(), listOps, found)
-	if err != nil {
-		log.Error(err, "failed to list server pods")
-		return nil, err
-	}
-	return found.Items, nil
-}
-
-// removeMember will delete a Pod from the cluster. The first Pod in the provided slice of Members will be deleted.
-func (r *ReconcileRethinkDBCluster) removeMember(cr *rethinkdbv1alpha1.RethinkDBCluster, members []corev1.Pod) error {
-	if len(members) <= 0 {
+// removeServer will delete a server Pod from the cluster. The first Pod in the provided slice of servers will be deleted.
+func (r *ReconcileRethinkDBCluster) removeServer(cr *rethinkdbv1alpha1.RethinkDBCluster, servers []corev1.Pod) error {
+	if len(servers) <= 0 {
 		return nil
 	}
 
-	pod := members[0]
+	pod := servers[0]
 	log.Info("removing existing server pod", "pod", pod.Name)
 
 	err := r.client.Delete(context.TODO(), &pod)
@@ -440,9 +486,9 @@ func (r *ReconcileRethinkDBCluster) removeMember(cr *rethinkdbv1alpha1.RethinkDB
 	}
 
 	// Pod deleted successfully, update status and return
-	members = append(members[:0], members[1:]...)
+	servers = append(servers[:0], servers[1:]...)
 	cr.Status.Servers = []string{}
-	for _, pod := range members {
+	for _, pod := range servers {
 		cr.Status.Servers = append(cr.Status.Servers, pod.Name)
 	}
 	return r.client.Status().Update(context.TODO(), cr)

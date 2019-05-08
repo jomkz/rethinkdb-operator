@@ -22,6 +22,32 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	// RethinkDBAdminKey is the key for the RethinkDB admin assets.
+	RethinkDBAdminKey = "admin"
+
+	// RethinkDBCAKey is the key for the RethinkDB CA TLS assets.
+	RethinkDBCAKey = "ca"
+
+	// RethinkDBClientKey is the key for the RethinkDB client TLS assets.
+	RethinkDBClientKey = "client"
+
+	// RethinkDBClusterKey is the key for the RethinkDB cluster TLS assets.
+	RethinkDBClusterKey = "cluster"
+
+	// RethinkDBDriverKey is the key for the RethinkDB driver TLS assets.
+	RethinkDBDriverKey = "driver"
+
+	// RethinkDBHttpKey is the key for the RethinkDB http TLS assets.
+	RethinkDBHttpKey = "http"
+
+	// RethinkDBDataKey is the key for the RethinkDB data volume.
+	RethinkDBDataKey = "rethinkdb-data"
+
+	// RethinkDBTLSSecretsKey is the key for the RethinkDB TLS secrets volume.
+	RethinkDBTLSSecretsKey = "tls-secrets"
+)
+
 // isPVEnabled helper to determine if persistent volumes have been enabled.
 func isPVEnabled(cr *v1alpha1.RethinkDBCluster) bool {
 	if podPolicy := cr.Spec.Pod; podPolicy != nil {
@@ -40,14 +66,47 @@ func newEmptyDirVolume(name string) corev1.Volume {
 	}
 }
 
-// newTLSSecretVolume creates a new volume for a TLS Secret with the given name.
-func newTLSSecretVolume(name string) corev1.Volume {
+// newProjectedVolume creates a new Projected volume with the given name.
+func newProjectedVolume(cr *v1alpha1.RethinkDBCluster, name string) corev1.Volume {
 	return corev1.Volume{
 		Name: name,
 		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: name,
-				//DefaultMode: int32(600),
+			Projected: &corev1.ProjectedVolumeSource{
+				Sources: []corev1.VolumeProjection{
+					corev1.VolumeProjection{
+						Secret: &corev1.SecretProjection{
+							LocalObjectReference: corev1.LocalObjectReference{Name: fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, RethinkDBCAKey)},
+							Items: []corev1.KeyToPath{
+								corev1.KeyToPath{
+									Key:  corev1.TLSCertKey,
+									Path: fmt.Sprintf("%s.crt", RethinkDBCAKey),
+								},
+							},
+						},
+					},
+					newTLSVolumeProjection(cr, RethinkDBClusterKey),
+					newTLSVolumeProjection(cr, RethinkDBDriverKey),
+					newTLSVolumeProjection(cr, RethinkDBHttpKey),
+				},
+			},
+		},
+	}
+}
+
+// newTLSVolumeProjection will retun a TLS certificate and key volume projection for the given name.
+func newTLSVolumeProjection(cr *v1alpha1.RethinkDBCluster, name string) corev1.VolumeProjection {
+	return corev1.VolumeProjection{
+		Secret: &corev1.SecretProjection{
+			LocalObjectReference: corev1.LocalObjectReference{Name: fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, name)},
+			Items: []corev1.KeyToPath{
+				corev1.KeyToPath{
+					Key:  corev1.TLSCertKey,
+					Path: fmt.Sprintf("%s.crt", name),
+				},
+				corev1.KeyToPath{
+					Key:  corev1.TLSPrivateKeyKey,
+					Path: fmt.Sprintf("%s.key", name),
+				},
 			},
 		},
 	}
@@ -60,7 +119,7 @@ func newPVCs(cr *v1alpha1.RethinkDBCluster) []corev1.PersistentVolumeClaim {
 	if isPVEnabled(cr) {
 		pvcs = append(pvcs, corev1.PersistentVolumeClaim{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "rethinkdb-data",
+				Name:      RethinkDBDataKey,
 				Namespace: cr.ObjectMeta.Namespace,
 				Labels:    cr.ObjectMeta.Labels,
 			},
@@ -73,16 +132,12 @@ func newPVCs(cr *v1alpha1.RethinkDBCluster) []corev1.PersistentVolumeClaim {
 
 // newVolumes creates the volumes used by the application.
 func newVolumes(cr *v1alpha1.RethinkDBCluster) []corev1.Volume {
-	var volumes []corev1.Volume
-
-	volumes = append(volumes, newEmptyDirVolume("rethinkdb-etc"))
-	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-ca", cr.ObjectMeta.Name)))
-	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-cluster", cr.ObjectMeta.Name)))
-	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-driver", cr.ObjectMeta.Name)))
-	volumes = append(volumes, newTLSSecretVolume(fmt.Sprintf("%s-http", cr.ObjectMeta.Name)))
+	volumes := []corev1.Volume{
+		newProjectedVolume(cr, RethinkDBTLSSecretsKey),
+	}
 
 	if !isPVEnabled(cr) {
-		volumes = append(volumes, newEmptyDirVolume("rethinkdb-data"))
+		volumes = append(volumes, newEmptyDirVolume(RethinkDBDataKey))
 	}
 
 	return volumes

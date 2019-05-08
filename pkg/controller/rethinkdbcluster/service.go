@@ -15,21 +15,30 @@
 package rethinkdbcluster
 
 import (
+	"fmt"
+
 	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// newServicePorts constructs the ServicePort objects for the Service.
-func newServicePorts(cr *v1alpha1.RethinkDBCluster) []corev1.ServicePort {
-	var ports []corev1.ServicePort
-
-	ports = append(ports, corev1.ServicePort{Port: 28015, Name: "driver"})
-	if cr.Spec.WebAdminEnabled {
-		ports = append(ports, corev1.ServicePort{Port: 8080, Name: "http"})
+// newAdminService constructs a new admin Service object.
+func newAdminService(cr *v1alpha1.RethinkDBCluster) *corev1.Service {
+	svc := newService(cr)
+	svc.ObjectMeta.Name = fmt.Sprintf("%s-%s", cr.Name, RethinkDBAdminKey)
+	svc.Spec.Ports = []corev1.ServicePort{
+		corev1.ServicePort{Port: RethinkDBHttpPort, Name: RethinkDBHttpKey},
 	}
+	return svc
+}
 
-	return ports
+// newDriverService constructs a new driver Service object.
+func newDriverService(cr *v1alpha1.RethinkDBCluster) *corev1.Service {
+	svc := newService(cr)
+	svc.Spec.Ports = []corev1.ServicePort{
+		corev1.ServicePort{Port: RethinkDBDriverPort, Name: RethinkDBDriverKey},
+	}
+	return svc
 }
 
 // newService constructs a new Service object.
@@ -41,14 +50,13 @@ func newService(cr *v1alpha1.RethinkDBCluster) *corev1.Service {
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name,
+			Name:      cr.ObjectMeta.Name,
 			Namespace: cr.ObjectMeta.Namespace,
 			Labels:    labels,
 		},
 		Spec: corev1.ServiceSpec{
 			Selector:        labels,
 			SessionAffinity: "ClientIP",
-			Ports:           newServicePorts(cr),
 		},
 	}
 }

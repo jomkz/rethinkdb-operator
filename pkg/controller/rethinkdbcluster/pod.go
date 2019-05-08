@@ -25,79 +25,105 @@ import (
 const (
 	baseImage      = "jmckind/rethinkdb"
 	defaultVersion = "latest"
-	defaultConfig  = `no-update-check
-bind=all
-directory=/var/lib/rethinkdb/default
-cluster-tls-ca=/etc/rethinkdb/tls/ca/tls.crt
-cluster-tls-cert=/etc/rethinkdb/tls/cluster/tls.crt
-cluster-tls-key=/etc/rethinkdb/tls/cluster/tls.key
-driver-tls-cert=/etc/rethinkdb/tls/driver/tls.crt
-driver-tls-key=/etc/rethinkdb/tls/driver/tls.key
-http-tls-cert=/etc/rethinkdb/tls/http/tls.crt
-http-tls-key=/etc/rethinkdb/tls/http/tls.key
-`
+
+	// RethinkDBClusterPort is the default RethinkDB cluster port.
+	RethinkDBClusterPort = 29015
+
+	// RethinkDBDataPath is the default path for RethinkDB data.
+	RethinkDBDataPath = "/var/lib/rethinkdb/default"
+
+	// RethinkDBDriverPort is the default RethinkDB driver port.
+	RethinkDBDriverPort = 28015
+
+	// RethinkDBHttpPort is the default RethinkDB http (web-admin) port.
+	RethinkDBHttpPort = 8080
+
+	// RethinkDBTLSPath is the default path for RethinkDB TLS assets.
+	RethinkDBTLSPath = "/etc/rethinkdb/tls"
 )
 
-// generateConfiguration will return the text for the RethinkDB configuration file.
-func generateConfiguration(r *v1alpha1.RethinkDBCluster) string {
-	config := defaultConfig
-
-	if !r.Spec.WebAdminEnabled {
-		config += "no-http-admin\n"
+// generateCommand will generate the command for the container in a server Pod for the RethinkDBCluster.
+func generateCommand(cr *v1alpha1.RethinkDBCluster, peers []string) []string {
+	// Add default args for all cases first
+	cmd := []string{
+		"/usr/bin/rethinkdb",
+		"--bind", "all",
+		"--cluster-tls-ca", fmt.Sprintf("%s/%s.crt", RethinkDBTLSPath, RethinkDBCAKey),
+		"--cluster-tls-cert", fmt.Sprintf("%s/%s.crt", RethinkDBTLSPath, RethinkDBClusterKey),
+		"--cluster-tls-key", fmt.Sprintf("%s/%s.key", RethinkDBTLSPath, RethinkDBClusterKey),
+		"--directory", RethinkDBDataPath,
+		"--driver-tls-cert", fmt.Sprintf("%s/%s.crt", RethinkDBTLSPath, RethinkDBDriverKey),
+		"--driver-tls-key", fmt.Sprintf("%s/%s.key", RethinkDBTLSPath, RethinkDBDriverKey),
+		"--no-update-check",
 	}
 
-	return config
+	// Enable the http web-admin console if requested
+	if cr.Spec.WebAdminEnabled {
+		cmd = append(cmd, "--http-tls-cert")
+		cmd = append(cmd, fmt.Sprintf("%s/%s.crt", RethinkDBTLSPath, RethinkDBHttpKey))
+
+		cmd = append(cmd, "--http-tls-key")
+		cmd = append(cmd, fmt.Sprintf("%s/%s.key", RethinkDBTLSPath, RethinkDBHttpKey))
+	} else {
+		cmd = append(cmd, "--no-http-admin")
+	}
+
+	// Handle initial password
+	cmd = append(cmd, "--initial-password")
+	if len(peers) <= 0 {
+		cmd = append(cmd, "$(RETHINKDB_PASSWORD)")
+	} else {
+		cmd = append(cmd, "auto")
+
+		// Join peers
+		for _, peer := range peers {
+			cmd = append(cmd, "--join")
+			cmd = append(cmd, fmt.Sprintf("%s:%d", peer, RethinkDBClusterPort))
+		}
+	}
+
+	return cmd
 }
 
 // newContainers will create the Containers for the RethinkDB Pod.
-func newContainers(cr *v1alpha1.RethinkDBCluster) []corev1.Container {
+func newContainers(cr *v1alpha1.RethinkDBCluster, peers []string) []corev1.Container {
 	return []corev1.Container{{
-		Command: []string{
-			"/usr/bin/rethinkdb",
-			"--no-update-check",
-			"--config-file",
-			"/etc/rethinkdb/rethinkdb.conf",
-		},
+		Command: generateCommand(cr, peers),
+		Env: []corev1.EnvVar{{
+			Name: "RETHINKDB_PASSWORD",
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: fmt.Sprintf("%s-admin", cr.ObjectMeta.Name)},
+					Key:                  PasswordKey,
+				},
+			},
+		}},
 		Image: fmt.Sprintf("%s:%s", baseImage, cr.Spec.Version),
 		Name:  "rethinkdb",
-		Ports: []corev1.ContainerPort{{
-			ContainerPort: 8080,
-			Name:          "http",
-		},
+		Ports: []corev1.ContainerPort{
 			{
-				ContainerPort: 28015,
-				Name:          "driver",
+				ContainerPort: RethinkDBClusterPort,
+				Name:          RethinkDBClusterKey,
 			},
 			{
-				ContainerPort: 29015,
-				Name:          "cluster",
+				ContainerPort: RethinkDBDriverPort,
+				Name:          RethinkDBDriverKey,
+			},
+			{
+				ContainerPort: RethinkDBHttpPort,
+				Name:          RethinkDBHttpKey,
 			}},
 		Resources: newContainerResources(cr),
 		Stdin:     true,
 		TTY:       true,
-		VolumeMounts: []corev1.VolumeMount{{
-			Name:      "rethinkdb-data",
-			MountPath: "/var/lib/rethinkdb/default",
-		},
+		VolumeMounts: []corev1.VolumeMount{
 			{
-				Name:      "rethinkdb-etc",
-				MountPath: "/etc/rethinkdb",
+				Name:      RethinkDBDataKey,
+				MountPath: RethinkDBDataPath,
 			},
 			{
-				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "ca"),
-				MountPath: "/etc/rethinkdb/tls/ca",
-			},
-			{
-				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "cluster"),
-				MountPath: "/etc/rethinkdb/tls/cluster",
-			},
-			{
-				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "driver"),
-				MountPath: "/etc/rethinkdb/tls/driver",
-			},
-			{
-				Name:      fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, "http"),
-				MountPath: "/etc/rethinkdb/tls/http",
+				Name:      RethinkDBTLSSecretsKey,
+				MountPath: RethinkDBTLSPath,
 			}},
 	}}
 }
@@ -111,32 +137,13 @@ func newContainerResources(cr *v1alpha1.RethinkDBCluster) corev1.ResourceRequire
 	return resources
 }
 
-// newInitContainers will create the Init Containers for the RethinkDB Pod.
-func newInitContainers(cr *v1alpha1.RethinkDBCluster, members []corev1.Pod) []corev1.Container {
-	config := generateConfiguration(cr)
-
-	// Add other existing Pod IPs to join cluster
-	for _, pod := range members {
-		config = fmt.Sprintf("%s\njoin=%s:29015", config, pod.Status.PodIP)
-	}
-
-	return []corev1.Container{{
-		Command: []string{
-			"/bin/sh",
-			"-c",
-			fmt.Sprintf("echo '%s' > /etc/rethinkdb/rethinkdb.conf", config),
-		},
-		Image: "busybox:latest",
-		Name:  "cluster-init",
-		VolumeMounts: []corev1.VolumeMount{{
-			Name:      "rethinkdb-etc",
-			MountPath: "/etc/rethinkdb",
-		}},
-	}}
-}
-
 // newPod returns a new Pod with the same namespace and name prefix as the cr
 func newPod(cr *v1alpha1.RethinkDBCluster, members []corev1.Pod) *corev1.Pod {
+	peers := []string{}
+	for _, member := range members {
+		peers = append(peers, member.Status.PodIP)
+	}
+
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("%s-", cr.Name),
@@ -144,9 +151,8 @@ func newPod(cr *v1alpha1.RethinkDBCluster, members []corev1.Pod) *corev1.Pod {
 			Labels:       labelsForCluster(cr),
 		},
 		Spec: corev1.PodSpec{
-			Containers:     newContainers(cr),
-			InitContainers: newInitContainers(cr, members),
-			Volumes:        newVolumes(cr),
+			Containers: newContainers(cr, peers),
+			Volumes:    newVolumes(cr),
 		},
 	}
 }
