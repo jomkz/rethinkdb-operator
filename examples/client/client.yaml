@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: rethinkdb-client
+spec:
+  containers:
+  - name: client
+    image: alpine:3.9
+    command:
+      - tail
+      - -f
+      - /dev/null    
+    resources: {}
+    volumeMounts:
+      - name: client-secrets
+        mountPath: /etc/rethinkdb/tls
+        readOnly: true
+      - name: admin-credentials
+        mountPath: /etc/rethinkdb/credentials
+        readOnly: true
+  volumes:
+    - name: client-secrets
+      projected:
+        sources:
+          - secret:
+              name: rethinkdb-basic-example-ca
+              items:
+                - key: tls.crt
+                  path: ca.crt
+          - secret:
+              name: rethinkdb-basic-example-client
+              items:
+                - key: tls.crt
+                  path: client.crt
+                - key: tls.key
+                  path: client.key
+    - name: admin-credentials
+      secret:
+        secretName: rethinkdb-basic-example-admin
+        items:
+          - key: password
+            path: admin-password
