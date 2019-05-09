@@ -137,8 +137,8 @@ func newPod(cr *v1alpha1.RethinkDBCluster, members []corev1.Pod) *corev1.Pod {
 
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: fmt.Sprintf("%s-", cr.Name),
-			Namespace:    cr.Namespace,
+			GenerateName: fmt.Sprintf("%s-", cr.ObjectMeta.Name),
+			Namespace:    cr.ObjectMeta.Namespace,
 			Labels:       labelsForCluster(cr),
 		},
 		Spec: corev1.PodSpec{
