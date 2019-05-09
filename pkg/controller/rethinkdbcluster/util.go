@@ -27,6 +27,9 @@ const (
 	// RethinkDBApp is the default RethinkDB application name.
 	RethinkDBApp = "rethinkdb"
 
+	// RethinkDBAppKey is the key for the RethinkDB app.
+	RethinkDBAppKey = "app"
+
 	// RethinkDBCAKey is the key for the RethinkDB CA TLS assets.
 	RethinkDBCAKey = "ca"
 
@@ -85,8 +88,8 @@ const (
 // defaultLabels returns the default set of labels for the cluster.
 func defaultLabels(cr *v1alpha1.RethinkDBCluster) map[string]string {
 	return map[string]string{
-		"app":     RethinkDBApp,
-		"cluster": cr.Name,
+		RethinkDBAppKey:     RethinkDBApp,
+		RethinkDBClusterKey: cr.Name,
 	}
 }
 
