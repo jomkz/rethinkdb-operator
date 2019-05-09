@@ -26,14 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	// PasswordKey is the key for the password field.
-	PasswordKey = "password"
-
-	// UsernameKey is the key for the username field.
-	UsernameKey = "username"
-)
-
 // newCASecret creates a new CA secret for the given RethinkDBCluster.
 func newCASecret(cr *v1alpha1.RethinkDBCluster, name string) (*corev1.Secret, error) {
 	secret := newTLSSecret(cr, name)
@@ -119,8 +111,8 @@ func newUserSecret(cr *v1alpha1.RethinkDBCluster, username string) (*corev1.Secr
 	secret := newSecret(cr)
 	secret.ObjectMeta.Name = fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, username)
 	secret.Data = map[string][]byte{
-		UsernameKey: []byte(username),
-		PasswordKey: []byte(psswd),
+		RethinkDBUsernameKey: []byte(username),
+		RethinkDBPasswordKey: []byte(psswd),
 	}
 	return secret, nil
 }

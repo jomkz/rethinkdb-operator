@@ -20,13 +20,14 @@ import (
 	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // generateCommand will generate the command for the container in a server Pod for the RethinkDBCluster.
 func generateCommand(cr *v1alpha1.RethinkDBCluster, peers []string) []string {
 	// Add default args for all cases first
 	cmd := []string{
-		"/usr/bin/rethinkdb",
+		RethinkDBExePath,
 		"--bind", "all",
 		"--cluster-tls-ca", fmt.Sprintf("%s/%s.crt", RethinkDBTLSPath, RethinkDBCAKey),
 		"--cluster-tls-cert", fmt.Sprintf("%s/%s.crt", RethinkDBTLSPath, RethinkDBClusterKey),
@@ -51,7 +52,7 @@ func generateCommand(cr *v1alpha1.RethinkDBCluster, peers []string) []string {
 	// Handle initial password
 	cmd = append(cmd, "--initial-password")
 	if len(peers) <= 0 {
-		cmd = append(cmd, "$(RETHINKDB_PASSWORD)")
+		cmd = append(cmd, fmt.Sprintf("$(%s)", RethinkDBPasswordEnv))
 	} else {
 		cmd = append(cmd, "auto")
 
@@ -70,16 +71,21 @@ func newContainers(cr *v1alpha1.RethinkDBCluster, peers []string) []corev1.Conta
 	return []corev1.Container{{
 		Command: generateCommand(cr, peers),
 		Env: []corev1.EnvVar{{
-			Name: "RETHINKDB_PASSWORD",
+			Name: RethinkDBPasswordEnv,
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: fmt.Sprintf("%s-admin", cr.ObjectMeta.Name)},
-					Key:                  PasswordKey,
+					LocalObjectReference: corev1.LocalObjectReference{Name: fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, RethinkDBAdminKey)},
+					Key:                  RethinkDBPasswordKey,
 				},
 			},
 		}},
 		Image: fmt.Sprintf("%s:%s", RethinkDBImage, cr.Spec.Version),
-		Name:  "rethinkdb",
+		LivenessProbe: &corev1.Probe{
+			Handler: corev1.Handler{
+				TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(RethinkDBDriverPort)},
+			},
+		},
+		Name: RethinkDBApp,
 		Ports: []corev1.ContainerPort{
 			{
 				ContainerPort: RethinkDBClusterPort,
@@ -93,6 +99,11 @@ func newContainers(cr *v1alpha1.RethinkDBCluster, peers []string) []corev1.Conta
 				ContainerPort: RethinkDBHttpPort,
 				Name:          RethinkDBHttpKey,
 			}},
+		ReadinessProbe: &corev1.Probe{
+			Handler: corev1.Handler{
+				TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt(RethinkDBDriverPort)},
+			},
+		},
 		Resources: newContainerResources(cr),
 		Stdin:     true,
 		TTY:       true,

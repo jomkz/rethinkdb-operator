@@ -51,6 +51,9 @@ const (
 	// RethinkDBDriverPort is the default RethinkDB driver port.
 	RethinkDBDriverPort = 28015
 
+	// RethinkDBExePath is the default RethinkDB executable path.
+	RethinkDBExePath = "/usr/bin/rethinkdb"
+
 	// RethinkDBHttpKey is the key for the RethinkDB http TLS assets.
 	RethinkDBHttpKey = "http"
 
@@ -63,11 +66,20 @@ const (
 	// RethinkDBImageTag is the default RethinkDB container image tag to run.
 	RethinkDBImageTag = "latest"
 
+	// RethinkDBPasswordKey is the key for the password field.
+	RethinkDBPasswordKey = "password"
+
+	// RethinkDBPasswordEnv is the key for the RethinkDB password environment variable.
+	RethinkDBPasswordEnv = "RETHINKDB_PASSWORD"
+
 	// RethinkDBTLSPath is the default path for RethinkDB TLS assets.
 	RethinkDBTLSPath = "/etc/rethinkdb/tls"
 
 	// RethinkDBTLSSecretsKey is the key for the RethinkDB TLS secrets volume.
 	RethinkDBTLSSecretsKey = "tls-secrets"
+
+	// RethinkDBUsernameKey is the key for the username field.
+	RethinkDBUsernameKey = "username"
 )
 
 // defaultLabels returns the default set of labels for the cluster.
