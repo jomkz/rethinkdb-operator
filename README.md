@@ -175,7 +175,7 @@ kubectl create -f deploy/crds/rethinkdb_v1alpha1_rethinkdbcluster_crd.yaml
 Once the CRD is present, we can start the operator locally and begin development.
 
 ```bash
-operator-sdk up local
+operator-sdk up local --namespace default
 ```
 
 You can now create a RethinkDB resource to test your changes.
