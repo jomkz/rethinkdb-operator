@@ -22,26 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	baseImage      = "jmckind/rethinkdb"
-	defaultVersion = "latest"
-
-	// RethinkDBClusterPort is the default RethinkDB cluster port.
-	RethinkDBClusterPort = 29015
-
-	// RethinkDBDataPath is the default path for RethinkDB data.
-	RethinkDBDataPath = "/var/lib/rethinkdb/default"
-
-	// RethinkDBDriverPort is the default RethinkDB driver port.
-	RethinkDBDriverPort = 28015
-
-	// RethinkDBHttpPort is the default RethinkDB http (web-admin) port.
-	RethinkDBHttpPort = 8080
-
-	// RethinkDBTLSPath is the default path for RethinkDB TLS assets.
-	RethinkDBTLSPath = "/etc/rethinkdb/tls"
-)
-
 // generateCommand will generate the command for the container in a server Pod for the RethinkDBCluster.
 func generateCommand(cr *v1alpha1.RethinkDBCluster, peers []string) []string {
 	// Add default args for all cases first
@@ -98,7 +78,7 @@ func newContainers(cr *v1alpha1.RethinkDBCluster, peers []string) []corev1.Conta
 				},
 			},
 		}},
-		Image: fmt.Sprintf("%s:%s", baseImage, cr.Spec.Version),
+		Image: fmt.Sprintf("%s:%s", RethinkDBImage, cr.Spec.Version),
 		Name:  "rethinkdb",
 		Ports: []corev1.ContainerPort{
 			{

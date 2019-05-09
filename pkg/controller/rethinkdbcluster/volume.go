@@ -22,32 +22,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-const (
-	// RethinkDBAdminKey is the key for the RethinkDB admin assets.
-	RethinkDBAdminKey = "admin"
-
-	// RethinkDBCAKey is the key for the RethinkDB CA TLS assets.
-	RethinkDBCAKey = "ca"
-
-	// RethinkDBClientKey is the key for the RethinkDB client TLS assets.
-	RethinkDBClientKey = "client"
-
-	// RethinkDBClusterKey is the key for the RethinkDB cluster TLS assets.
-	RethinkDBClusterKey = "cluster"
-
-	// RethinkDBDriverKey is the key for the RethinkDB driver TLS assets.
-	RethinkDBDriverKey = "driver"
-
-	// RethinkDBHttpKey is the key for the RethinkDB http TLS assets.
-	RethinkDBHttpKey = "http"
-
-	// RethinkDBDataKey is the key for the RethinkDB data volume.
-	RethinkDBDataKey = "rethinkdb-data"
-
-	// RethinkDBTLSSecretsKey is the key for the RethinkDB TLS secrets volume.
-	RethinkDBTLSSecretsKey = "tls-secrets"
-)
-
 // isPVEnabled helper to determine if persistent volumes have been enabled.
 func isPVEnabled(cr *v1alpha1.RethinkDBCluster) bool {
 	if podPolicy := cr.Spec.Pod; podPolicy != nil {

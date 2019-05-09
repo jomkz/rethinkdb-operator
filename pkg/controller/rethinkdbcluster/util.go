@@ -20,10 +20,60 @@ import (
 	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 )
 
+const (
+	// RethinkDBAdminKey is the key for the RethinkDB admin assets.
+	RethinkDBAdminKey = "admin"
+
+	// RethinkDBApp is the default RethinkDB application name.
+	RethinkDBApp = "rethinkdb"
+
+	// RethinkDBCAKey is the key for the RethinkDB CA TLS assets.
+	RethinkDBCAKey = "ca"
+
+	// RethinkDBClientKey is the key for the RethinkDB client TLS assets.
+	RethinkDBClientKey = "client"
+
+	// RethinkDBClusterKey is the key for the RethinkDB cluster TLS assets.
+	RethinkDBClusterKey = "cluster"
+
+	// RethinkDBClusterPort is the default RethinkDB cluster port.
+	RethinkDBClusterPort = 29015
+
+	// RethinkDBDataKey is the key for the RethinkDB data volume.
+	RethinkDBDataKey = "rethinkdb-data"
+
+	// RethinkDBDataPath is the default path for RethinkDB data.
+	RethinkDBDataPath = "/data"
+
+	// RethinkDBDriverKey is the key for the RethinkDB driver TLS assets.
+	RethinkDBDriverKey = "driver"
+
+	// RethinkDBDriverPort is the default RethinkDB driver port.
+	RethinkDBDriverPort = 28015
+
+	// RethinkDBHttpKey is the key for the RethinkDB http TLS assets.
+	RethinkDBHttpKey = "http"
+
+	// RethinkDBHttpPort is the default RethinkDB http (web-admin) port.
+	RethinkDBHttpPort = 8080
+
+	// RethinkDBImage is the default RethinkDB container image to run.
+	RethinkDBImage = "rethinkdb"
+
+	// RethinkDBImageTag is the default RethinkDB container image tag to run.
+	RethinkDBImageTag = "latest"
+
+	// RethinkDBTLSPath is the default path for RethinkDB TLS assets.
+	RethinkDBTLSPath = "/etc/rethinkdb/tls"
+
+	// RethinkDBTLSSecretsKey is the key for the RethinkDB TLS secrets volume.
+	RethinkDBTLSSecretsKey = "tls-secrets"
+)
+
 // defaultLabels returns the default set of labels for the cluster.
 func defaultLabels(cr *v1alpha1.RethinkDBCluster) map[string]string {
 	return map[string]string{
-		"app":     "rethinkdb",
+		"app":     RethinkDBApp,
 		"cluster": cr.Name,
 	}
 }
@@ -46,7 +96,7 @@ func setDefaults(cr *v1alpha1.RethinkDBCluster) bool {
 		changed = true
 	}
 	if strings.TrimSpace(spec.Version) == "" {
-		spec.Version = defaultVersion
+		spec.Version = RethinkDBImageTag
 		changed = true
 	}
 	return changed
