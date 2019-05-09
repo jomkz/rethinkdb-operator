@@ -12,7 +12,7 @@ The first step is to deploy the RethinkDB Operator into the cluster where it
 will watch for requests to create `RethinkDBCluster` resources, much like the native
 Kubernetes Deployment Controller watches for Deployment resource requests.
 
-#### Deploy RethinkDB Operator
+### Deploy RethinkDB Operator
 
 The `deploy` directory contains the manifests needed to properly install the
 Operator.
@@ -56,9 +56,10 @@ You can have a look at the logs for troubleshooting if needed.
 kubectl logs -l name=rethinkdb-operator
 ```
 
-Once the RethinkDB Operator is deployed, Have a look in the `examples` directory for example manifests that create `RethinkDB` resources.
+Once the RethinkDB Operator is deployed, Have a look in the `examples` directory
+for example manifests that create `RethinkDB` resources.
 
-#### Create RethinkDB Cluster
+### Create RethinkDB Cluster
 
 Once the Operator is deployed and running, we can create an example RethinkDB
 cluster. The `example` directory contains several example manifests for creating
@@ -74,7 +75,7 @@ Watch the list of pods to see that each requested node starts successfully.
 kubectl get pods -wl cluster=rethinkdb-minimal-example
 ```
 
-#### Destroy RethinkDB Cluster
+### Destroy RethinkDB Cluster
 
 Simply delete the `RethinkDB` Custom Resource to remove the cluster.
 
@@ -82,7 +83,7 @@ Simply delete the `RethinkDB` Custom Resource to remove the cluster.
 kubectl delete -f example/rethinkdb-minimal.yaml
 ```
 
-#### Persistent Volumes
+### Persistent Volumes
 
 The RethinkDB Operator supports the use of Persistent Volumes for each node in
 the RethinkDB cluster. See [rethinkdb-custom.yaml](example/rethinkdb-custom.yaml)
@@ -100,15 +101,16 @@ not be removed automatically.
 kubectl delete rethinkdb,pvc -l cluster=rethinkdb-custom-example
 ```
 
-#### Test Connection
+### Test Connection
 
-You can spin up a simple client Pod to test accessing the cluster. See the client in the `examples` directory.
+You can spin up a simple client Pod to test accessing the cluster. The following code will list the
+names of each node in the cluster. See the full client in the `examples` directory.
 
 ```javascript
 r = require('rethinkdb');
 fs = require('fs');
 
-const SERVER_HOST = 'rethinkdb-basic-example.rethinkdb.svc.cluster.local';
+const SERVER_HOST = 'rethinkdb-minimal-example.default.svc.cluster.local';
 const SERVER_PORT = 28015;
 const SERVER_TIMEOUT = 10;
 const SERVER_PASSWORD = fs.readFileSync('/etc/rethinkdb/credentials/admin-password', 'utf8');
@@ -140,7 +142,7 @@ r.connect({
 
 Local development is usually done with [minikube](https://github.com/kubernetes/minikube) or [minishift](https://www.okd.io/minishift/).
 
-#### Minikube
+### Minikube
 
 When using minikube for local development and testing, it may be necessary to increase the resources for the minikube VM.
 
@@ -148,7 +150,7 @@ When using minikube for local development and testing, it may be necessary to in
 minikube start --cpus 2 --memory 8192 --disk-size 40g
 ```
 
-#### Source Code
+### Source Code
 
 Clone the repository to a location on your workstation, generally this should be in someplace like `$GOPATH/src/github.com/ORG/REPO`.
 
@@ -159,7 +161,7 @@ cd YOUR_REPO_PATH
 dep ensure && dep status
 ```
 
-#### Run Locally
+### Run Locally
 
 Once the dependencies are present, ensure the service account, role, role binding and CRD are added to your local cluster.
 
