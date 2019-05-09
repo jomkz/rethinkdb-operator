@@ -98,7 +98,7 @@ remove the left-over volumes when the cluster is no longer needed, as these will
 not be removed automatically.
 
 ```bash
-kubectl delete rethinkdb,pvc -l cluster=rethinkdb-custom-example
+kubectl delete rethinkdbcluster,pvc -l cluster=rethinkdb-custom-example
 ```
 
 ### Test Connection
