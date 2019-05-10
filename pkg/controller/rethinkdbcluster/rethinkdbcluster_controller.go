@@ -194,6 +194,13 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 		return reconcile.Result{}, err
 	}
 
+	// Reconcile the cluster persistent volume claims
+	// err = r.reconcilePersistentVolumeClaims(cluster)
+	// if err != nil {
+	// 	reqLogger.Error(err, "unable to reconcile persistent volume claims")
+	// 	return reconcile.Result{}, err
+	// }
+
 	// Reconcile the cluster server pods
 	err = r.reconcileServerPods(cluster)
 	if err != nil {
@@ -203,6 +210,19 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 
 	// No errors, return and don't requeue
 	return reconcile.Result{}, nil
+}
+
+// addPVC will add a new Pod to the cluster.
+func (r *ReconcileRethinkDBCluster) addPVC(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
+	log.Info("creating new persistent volume claim")
+	pvc := newPVC(cr)
+
+	// Set RethinkDB instance as the owner and controller
+	if err := controllerutil.SetControllerReference(cr, pvc, r.scheme); err != nil {
+		return err
+	}
+
+	return r.client.Create(context.TODO(), newPVC(cr))
 }
 
 // addServer will add a new Pod to the cluster.
@@ -223,6 +243,19 @@ func (r *ReconcileRethinkDBCluster) addServer(cr *rethinkdbv1alpha1.RethinkDBClu
 	// Pod created successfully, update status and return
 	cr.Status.Servers = append(cr.Status.Servers, pod.Name)
 	return r.client.Status().Update(context.TODO(), cr)
+}
+
+// listPVCs will return a slice containing the persistent volume claims for the cluster.
+func (r *ReconcileRethinkDBCluster) listPVCs(cr *rethinkdbv1alpha1.RethinkDBCluster) ([]corev1.PersistentVolumeClaim, error) {
+	found := &corev1.PersistentVolumeClaimList{}
+	labelSelector := labels.SelectorFromSet(labelsForCluster(cr))
+	listOps := &client.ListOptions{Namespace: cr.Namespace, LabelSelector: labelSelector}
+	err := r.client.List(context.TODO(), listOps, found)
+	if err != nil {
+		log.Error(err, "failed to list persistent volume claims")
+		return nil, err
+	}
+	return found.Items, nil
 }
 
 // listServers will return a slice containing the server Pods in the cluster.
@@ -391,6 +424,29 @@ func (r *ReconcileRethinkDBCluster) reconcileDriverService(cr *rethinkdbv1alpha1
 	return nil
 }
 
+// reconcilePersistentVolumeClaims ensures the requested number of PVCs are created.
+func (r *ReconcileRethinkDBCluster) reconcilePersistentVolumeClaims(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
+	if !isPVEnabled(cr) {
+		return nil
+	}
+
+	pvcs, err := r.listPVCs(cr)
+	if err != nil {
+		log.Error(err, "unable to list persistent volume claims")
+		return err
+	}
+	pvcCount := int32(len(pvcs))
+
+	if pvcCount < cr.Spec.Size {
+		return r.addPVC(cr)
+	} else if pvcCount > cr.Spec.Size {
+		return r.removePVC(cr, pvcs)
+	}
+
+	log.Info("correct persistent volume claim count reached", "count", pvcCount)
+	return nil
+}
+
 // reconcileServers ensures the requested number of server Pods are created.
 func (r *ReconcileRethinkDBCluster) reconcileServerPods(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
 	servers, err := r.listServers(cr)
@@ -477,6 +533,26 @@ func (r *ReconcileRethinkDBCluster) reconcileTLSSecretWithSuffix(cr *rethinkdbv1
 	}
 
 	log.Info("secret exists", "secret", found.Name)
+	return nil
+}
+
+// removePVC will delete a PVC from the cluster. The first unbound PVC in the provided slice of PVCs will be deleted.
+func (r *ReconcileRethinkDBCluster) removePVC(cr *rethinkdbv1alpha1.RethinkDBCluster, pvcs []corev1.PersistentVolumeClaim) error {
+	if len(pvcs) <= 0 {
+		return nil
+	}
+
+	for _, pvc := range pvcs {
+		if pvc.Status.Phase == corev1.ClaimPending {
+			log.Info("removing existing persistent volume claim", "pvc", pvc.ObjectMeta.Name)
+			err := r.client.Delete(context.TODO(), &pvc)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// Nothing to remove...
 	return nil
 }
 

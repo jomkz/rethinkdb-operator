@@ -67,6 +67,16 @@ func newProjectedVolume(cr *v1alpha1.RethinkDBCluster, name string) corev1.Volum
 	}
 }
 
+// newPVCVolume creates a new PersistentVolumeClaim volume with the given name.
+func newPVCVolume(name string, claimName string) corev1.Volume {
+	return corev1.Volume{
+		Name: name,
+		VolumeSource: corev1.VolumeSource{
+			PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{ClaimName: claimName},
+		},
+	}
+}
+
 // newTLSVolumeProjection will retun a TLS certificate and key volume projection for the given name.
 func newTLSVolumeProjection(cr *v1alpha1.RethinkDBCluster, name string) corev1.VolumeProjection {
 	return corev1.VolumeProjection{
@@ -86,22 +96,21 @@ func newTLSVolumeProjection(cr *v1alpha1.RethinkDBCluster, name string) corev1.V
 	}
 }
 
-// newPVCs creates the PVCs used by the application.
-func newPVCs(cr *v1alpha1.RethinkDBCluster) []corev1.PersistentVolumeClaim {
-	var pvcs []corev1.PersistentVolumeClaim
-
+// newPVC creates a new PersistentVolumeClaim for the cluster.
+func newPVC(cr *v1alpha1.RethinkDBCluster) *corev1.PersistentVolumeClaim {
+	var pvcSpec corev1.PersistentVolumeClaimSpec
 	if isPVEnabled(cr) {
-		pvcs = append(pvcs, corev1.PersistentVolumeClaim{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      RethinkDBDataKey,
-				Namespace: cr.ObjectMeta.Namespace,
-				Labels:    cr.ObjectMeta.Labels,
-			},
-			Spec: *cr.Spec.Pod.PersistentVolumeClaimSpec,
-		})
+		pvcSpec = *cr.Spec.Pod.PersistentVolumeClaimSpec
 	}
 
-	return pvcs
+	return &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: fmt.Sprintf("%s-", cr.ObjectMeta.Name),
+			Namespace:    cr.ObjectMeta.Namespace,
+			Labels:       cr.ObjectMeta.Labels,
+		},
+		Spec: pvcSpec,
+	}
 }
 
 // newVolumes creates the volumes used by the application.
@@ -110,9 +119,8 @@ func newVolumes(cr *v1alpha1.RethinkDBCluster) []corev1.Volume {
 		newProjectedVolume(cr, RethinkDBTLSSecretsKey),
 	}
 
-	if !isPVEnabled(cr) {
-		volumes = append(volumes, newEmptyDirVolume(RethinkDBDataKey))
-	}
+	// TODO: Handle persistent volumes for RethinkDB data!
+	volumes = append(volumes, newEmptyDirVolume(RethinkDBDataKey))
 
 	return volumes
 }
