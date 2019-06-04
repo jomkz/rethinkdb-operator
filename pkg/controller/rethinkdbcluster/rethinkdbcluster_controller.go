@@ -18,10 +18,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/coreos/go-semver/semver"
 	rethinkdbv1alpha1 "github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -136,7 +137,7 @@ func (r *ReconcileRethinkDBCluster) Reconcile(request reconcile.Request) (reconc
 	cluster := &rethinkdbv1alpha1.RethinkDBCluster{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, cluster)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if k8serrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Return and don't requeue
 			return reconcile.Result{}, nil
@@ -276,7 +277,7 @@ func (r *ReconcileRethinkDBCluster) reconcileAdminSecret(cr *rethinkdbv1alpha1.R
 	name := fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, RethinkDBAdminKey)
 	found := &corev1.Secret{}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 		log.Info("creating new secret", "secret", name)
 		secret, err := newUserSecret(cr, RethinkDBAdminKey)
 		if err != nil {
@@ -303,7 +304,7 @@ func (r *ReconcileRethinkDBCluster) reconcileAdminService(cr *rethinkdbv1alpha1.
 	name := fmt.Sprintf("%s-%s", cr.ObjectMeta.Name, RethinkDBAdminKey)
 
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 		if !cr.Spec.WebAdminEnabled {
 			// Admin not enabled, do not create service
 			return nil
@@ -339,7 +340,7 @@ func (r *ReconcileRethinkDBCluster) reconcileCAConfigMap(cr *rethinkdbv1alpha1.R
 	found := &corev1.ConfigMap{}
 
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 		log.Info("creating new configmap", "configmap", name)
 		cm, err := newCAConfigMap(cr, caSecret)
 		if err != nil {
@@ -367,7 +368,7 @@ func (r *ReconcileRethinkDBCluster) reconcileCASecret(cr *rethinkdbv1alpha1.Reth
 	found := &corev1.Secret{}
 
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 		log.Info("creating new ca secret", "secret", name)
 
 		secret, err := newCASecret(cr, name)
@@ -398,7 +399,7 @@ func (r *ReconcileRethinkDBCluster) reconcileCASecret(cr *rethinkdbv1alpha1.Reth
 func (r *ReconcileRethinkDBCluster) reconcileDriverService(cr *rethinkdbv1alpha1.RethinkDBCluster) error {
 	found := &corev1.Service{}
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: cr.Name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 		log.Info("creating new service", "service", cr.Name)
 		svc := newDriverService(cr)
 
@@ -460,7 +461,7 @@ func (r *ReconcileRethinkDBCluster) reconcileServerPods(cr *rethinkdbv1alpha1.Re
 		// Ensure all existing Pods are running before adding a new Pod.
 		for _, pod := range servers {
 			if pod.Status.Phase != corev1.PodRunning {
-				log.Info("waiting for existing server pods to become ready...")
+				log.Info("waiting for existing server pods to enter running phase", "pod", pod.ObjectMeta.Name)
 				return nil
 			}
 		}
@@ -470,6 +471,40 @@ func (r *ReconcileRethinkDBCluster) reconcileServerPods(cr *rethinkdbv1alpha1.Re
 	}
 
 	log.Info("correct cluster size reached", "size", serverCount)
+	return r.reconcileServerUpgrade(cr, servers)
+}
+
+// reconcileServerUpgrade will upgrade each server Pod to the correct version for the given RethinkDBCluster.
+func (r *ReconcileRethinkDBCluster) reconcileServerUpgrade(cr *rethinkdbv1alpha1.RethinkDBCluster, servers []corev1.Pod) error {
+	// Ensure all pods ready before upgrade
+	for _, pod := range servers {
+		log.Info("verify pod phase", "pod", pod.ObjectMeta.Name, "phase", pod.Status.Phase)
+		if pod.Status.Phase != corev1.PodRunning {
+			log.Info("waiting for existing server pods to enter running phase", "pod", pod.ObjectMeta.Name)
+			return nil
+		}
+
+		for _, status := range pod.Status.ContainerStatuses {
+			log.Info("verify container status", "pod", pod.ObjectMeta.Name, "ready", status.Ready)
+			if !status.Ready {
+				log.Info("waiting for existing server pods to become ready", "pod", pod.ObjectMeta.Name)
+				return nil
+			}
+		}
+	}
+
+	// Upgrade the Pod by chaging the tag for the container image
+	for _, pod := range servers {
+		image, version := parseContainerImage(pod.Spec.Containers[0].Image)
+		oldVersion := semver.New(version)
+		newVersion := semver.New(cr.Spec.Version)
+
+		if oldVersion.LessThan(*newVersion) {
+			log.Info("upgrading server pod", "pod", pod.ObjectMeta.Name, "old", oldVersion, "new", newVersion)
+			pod.Spec.Containers[0].Image = fmt.Sprintf("%s:%s", image, newVersion)
+			return r.client.Update(context.TODO(), &pod)
+		}
+	}
 	return nil
 }
 
@@ -504,7 +539,7 @@ func (r *ReconcileRethinkDBCluster) reconcileTLSSecretWithSuffix(cr *rethinkdbv1
 	name := fmt.Sprintf("%s-%s", cr.Name, suffix)
 
 	err := r.client.Get(context.TODO(), types.NamespacedName{Name: name, Namespace: cr.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
+	if err != nil && k8serrors.IsNotFound(err) {
 		log.Info("creating new secret", "secret", name)
 
 		caCert, err := parsePEMEncodedCert(caSecret.Data[corev1.TLSCertKey])

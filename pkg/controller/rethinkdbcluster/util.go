@@ -102,6 +102,18 @@ func labelsForCluster(cr *v1alpha1.RethinkDBCluster) map[string]string {
 	return labels
 }
 
+// parseContainerImage will return the image and version for the given container image.
+// If the image or version cannot be parsed, a blank string will be returned.
+func parseContainerImage(image string) (string, string) {
+	parts := strings.Split(image, ":")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	} else if len(parts) == 1 {
+		return parts[0], ""
+	}
+	return "", ""
+}
+
 // setDefaults sets the default vaules for the spec and returns true if the spec was changed.
 func setDefaults(cr *v1alpha1.RethinkDBCluster) bool {
 	changed := false

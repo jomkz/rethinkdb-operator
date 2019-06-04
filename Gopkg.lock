@@ -42,6 +42,14 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
+  digest = "1:e29f05b742d9ccbfb65faca82ec43da7742cb7b039469640823c64b639b91b92"
+  name = "github.com/coreos/go-semver"
+  packages = ["semver"]
+  pruneopts = "NT"
+  revision = "e214231b295a8ea9479f11b70b35d5acf3556d9b"
+  version = "v0.3.0"
+
+[[projects]]
   digest = "1:c61f4f97321a37adcb5b4fd4fd61209cd553e46c99ee606c465553541b12a229"
   name = "github.com/coreos/prometheus-operator"
   packages = [
@@ -916,6 +924,7 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/coreos/go-semver/semver",
     "github.com/go-openapi/spec",
     "github.com/operator-framework/operator-sdk/pkg/k8sutil",
     "github.com/operator-framework/operator-sdk/pkg/leader",
