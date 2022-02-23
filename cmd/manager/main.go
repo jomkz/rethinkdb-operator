@@ -21,9 +21,9 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/jmckind/rethinkdb-operator/pkg/apis"
-	"github.com/jmckind/rethinkdb-operator/pkg/controller"
-	"github.com/jmckind/rethinkdb-operator/version"
+	"github.com/rtfkt-ltd/rethinkdb-operator/pkg/apis"
+	"github.com/rtfkt-ltd/rethinkdb-operator/pkg/controller"
+	"github.com/rtfkt-ltd/rethinkdb-operator/version"
 
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	"github.com/operator-framework/operator-sdk/pkg/leader"

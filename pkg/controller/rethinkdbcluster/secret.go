@@ -19,8 +19,8 @@ import (
 	"crypto/x509"
 	"fmt"
 
-	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 	tlsutil "github.com/operator-framework/operator-sdk/pkg/tls"
+	"github.com/rtfkt-ltd/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 	"github.com/sethvargo/go-password/password"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

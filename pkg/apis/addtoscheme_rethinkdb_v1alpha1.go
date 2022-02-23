@@ -15,7 +15,7 @@
 package apis
 
 import (
-	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
+	"github.com/rtfkt-ltd/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 )
 
 func init() {

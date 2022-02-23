@@ -8,7 +8,7 @@ metadata:
     description: Create and maintain highly-available RethinkDB clusters on Kubernetes
     containerImage: jmckind/rethinkdb-operator:v0.0.3
     createdAt: 2019-04-07T03:20:00Z
-    repository: https://github.com/jmckind/rethinkdb-operator
+    repository: https://github.com/rtfkt-ltd/rethinkdb-operator
     support: jmckind
   name: rethinkdb-operator.v0.0.3
   namespace: placeholder

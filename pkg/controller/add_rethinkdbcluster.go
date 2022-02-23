@@ -15,7 +15,7 @@
 package controller
 
 import (
-	"github.com/jmckind/rethinkdb-operator/pkg/controller/rethinkdbcluster"
+	"github.com/rtfkt-ltd/rethinkdb-operator/pkg/controller/rethinkdbcluster"
 )
 
 func init() {

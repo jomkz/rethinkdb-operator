@@ -17,7 +17,7 @@ package rethinkdbcluster
 import (
 	"strings"
 
-	"github.com/jmckind/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
+	"github.com/rtfkt-ltd/rethinkdb-operator/pkg/apis/rethinkdb/v1alpha1"
 )
 
 const (
